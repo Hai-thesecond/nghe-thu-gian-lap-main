@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Use Proper Formatting
+When sharing code, commands, or structured data, ensure that you use the correct syntax and formatting. This minimizes errors and makes it easier for Cursor AI to parse the information correctly.

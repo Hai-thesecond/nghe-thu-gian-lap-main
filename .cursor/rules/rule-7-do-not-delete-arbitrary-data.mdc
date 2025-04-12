@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Do Not Delete Arbitrary Data
+To maintain a robust conversation history and context, refrain from deleting parts of the conversation or key instructions without a clear reason. Keeping the full context ensures that Cursor AI can reference earlier information accurately.

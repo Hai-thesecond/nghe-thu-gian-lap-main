@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
+  <g opacity="0.9">
+    <ellipse cx="400" cy="300" rx="350" ry="250" fill="url(#gradient-bg)" opacity="0.2"/>
+  </g>
+  
+  <!-- Background elements -->
+  <path d="M600,200 Q650,250 600,300 T600,400 T500,450 T400,400 T300,450 T200,400 T100,350 T50,250 T100,150 T200,100 T300,50 T400,100 T500,50 T600,150 T600,200" fill="url(#gradient-light)" opacity="0.1"/>
+  
+  <!-- Laptop -->
+  <rect x="320" y="250" width="200" height="140" rx="10" fill="#2563EB" />
+  <rect x="330" y="260" width="180" height="110" rx="5" fill="#E0F2FE" />
+  <rect x="290" y="390" width="260" height="15" rx="2" fill="#1E40AF" />
+  
+  <!-- Code blocks on screen -->
+  <rect x="350" y="280" width="140" height="10" rx="2" fill="#3B82F6" opacity="0.7"/>
+  <rect x="350" y="300" width="120" height="10" rx="2" fill="#3B82F6" opacity="0.5"/>
+  <rect x="350" y="320" width="100" height="10" rx="2" fill="#3B82F6" opacity="0.6"/>
+  <rect x="350" y="340" width="130" height="10" rx="2" fill="#3B82F6" opacity="0.8"/>
+  
+  <!-- Books -->
+  <rect x="520" y="360" width="50" height="60" rx="2" fill="#3B82F6" />
+  <rect x="525" y="370" width="40" height="5" rx="1" fill="white" opacity="0.5"/>
+  <rect x="525" y="380" width="30" height="5" rx="1" fill="white" opacity="0.5"/>
+  
+  <rect x="540" y="340" width="50" height="60" rx="2" fill="#1E40AF" />
+  <rect x="545" y="350" width="40" height="5" rx="1" fill="white" opacity="0.5"/>
+  <rect x="545" y="360" width="30" height="5" rx="1" fill="white" opacity="0.5"/>
+  
+  <!-- Student/teacher figure -->
+  <circle cx="200" cy="300" r="50" fill="#3B82F6" />
+  <circle cx="200" cy="270" r="20" fill="#BFDBFE" />
+  <rect x="175" y="300" width="50" height="60" rx="10" fill="#BFDBFE" />
+  
+  <!-- Flying elements -->
+  <circle cx="150" cy="200" r="20" fill="#3B82F6" opacity="0.2"/>
+  <circle cx="600" cy="250" r="15" fill="#3B82F6" opacity="0.2"/>
+  <circle cx="400" cy="150" r="25" fill="#3B82F6" opacity="0.2"/>
+  <circle cx="250" cy="400" r="18" fill="#3B82F6" opacity="0.2"/>
+  <circle cx="500" cy="350" r="22" fill="#3B82F6" opacity="0.2"/>
+  
+  <!-- Education icons -->
+  <path d="M650,300 L680,280 L710,300 L680,320 Z" fill="#3B82F6"/>
+  <rect x="675" y="320" width="10" height="20" fill="#3B82F6"/>
+  
+  <circle cx="100" cy="320" r="25" fill="#BFDBFE"/>
+  <text x="100" y="330" text-anchor="middle" font-size="30" font-family="Arial" fill="#3B82F6">A</text>
+  
+  <defs>
+    <linearGradient id="gradient-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#60A5FA" />
+    </linearGradient>
+    <linearGradient id="gradient-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#93C5FD" />
+    </linearGradient>
+  </defs>
+</svg> 

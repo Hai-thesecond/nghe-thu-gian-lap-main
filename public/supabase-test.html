@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase Connection Test</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+    .button {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 10px 0;
+      display: block;
+      width: 100%;
+      font-size: 16px;
+    }
+    .button:hover {
+      background-color: #2563eb;
+    }
+    .button:disabled {
+      background-color: #93c5fd;
+      cursor: not-allowed;
+    }
+    .results {
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .credentials {
+      margin-bottom: 20px;
+    }
+    .credentials input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .credentials label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Supabase Connection Test</h1>
+  
+  <div class="credentials">
+    <p>This page tests your Supabase connection. Click the buttons below to run different tests.</p>
+    
+    <div>
+      <label for="url">Supabase URL:</label>
+      <input type="text" id="url" value="https://tscigqtvowftzriqvzit.supabase.co" />
+    </div>
+    
+    <div>
+      <label for="key">Supabase Anon Key:</label>
+      <input type="text" id="key" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRzY2lncXR2b3dmdHpyaXF2eml0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI0Mjk2NTAsImV4cCI6MjA1ODAwNTY1MH0.wOUqO1V261MA_NGTnmf_1TkwYB-yhgtRCd0rtqxpbyM" />
+    </div>
+    
+    <div>
+      <label for="email">Test Email:</label>
+      <input type="email" id="email" value="teacher@gmail.com" />
+    </div>
+    
+    <div>
+      <label for="password">Test Password:</label>
+      <input type="password" id="password" value="password123" />
+    </div>
+  </div>
+  
+  <button id="connectionTest" class="button">Test Basic Connection</button>
+  <button id="authTest" class="button">Test Authentication Service</button>
+  <button id="loginTest" class="button">Test Login</button>
+  <button id="clearStorage" class="button">Clear Local Storage</button>
+  
+  <div id="results" class="results">Results will appear here...</div>
+  
+  <script>
+    const resultsEl = document.getElementById('results');
+    const connectionTestBtn = document.getElementById('connectionTest');
+    const authTestBtn = document.getElementById('authTest');
+    const loginTestBtn = document.getElementById('loginTest');
+    const clearStorageBtn = document.getElementById('clearStorage');
+    
+    // Function to get supabase client with current credentials
+    function getSupabaseClient() {
+      const url = document.getElementById('url').value;
+      const key = document.getElementById('key').value;
+      
+      if (!url || !key) {
+        appendResult('ERROR: Please provide both Supabase URL and key', 'error');
+        return null;
+      }
+      
+      return supabase.createClient(url, key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true
+        }
+      });
+    }
+    
+    // Function to append results
+    function appendResult(text, className = '') {
+      const timestamp = new Date().toLocaleTimeString();
+      resultsEl.innerHTML += `<div class="${className}">[${timestamp}] ${text}</div>`;
+      resultsEl.scrollTop = resultsEl.scrollHeight;
+    }
+    
+    // Clear results
+    function clearResults() {
+      resultsEl.innerHTML = '';
+    }
+    
+    // Test basic connection
+    connectionTestBtn.addEventListener('click', async () => {
+      clearResults();
+      connectionTestBtn.disabled = true;
+      appendResult('Testing basic connection...');
+      
+      try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          connectionTestBtn.disabled = false;
+          return;
+        }
+        
+        const startTime = Date.now();
+        const { data, error } = await supabase.from('profiles').select('count');
+        const duration = Date.now() - startTime;
+        
+        if (error) {
+          appendResult(`Failed to connect to database: ${error.message}`, 'error');
+          appendResult(`Error code: ${error.code}`, 'error');
+          appendResult(`Error details: ${JSON.stringify(error)}`, 'error');
+        } else {
+          appendResult(`Successfully connected to database in ${duration}ms!`, 'success');
+          appendResult(`Response: ${JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        appendResult(`Exception during connection test: ${err.message}`, 'error');
+        console.error(err);
+      } finally {
+        connectionTestBtn.disabled = false;
+      }
+    });
+    
+    // Test auth service
+    authTestBtn.addEventListener('click', async () => {
+      clearResults();
+      authTestBtn.disabled = true;
+      appendResult('Testing authentication service...');
+      
+      try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          authTestBtn.disabled = false;
+          return;
+        }
+        
+        const startTime = Date.now();
+        const { data, error } = await supabase.auth.getSession();
+        const duration = Date.now() - startTime;
+        
+        if (error) {
+          appendResult(`Failed to connect to auth service: ${error.message}`, 'error');
+          appendResult(`Error details: ${JSON.stringify(error)}`, 'error');
+        } else {
+          appendResult(`Successfully connected to auth service in ${duration}ms!`, 'success');
+          
+          if (data.session) {
+            appendResult(`Active session found for user: ${data.session.user.email}`, 'success');
+            appendResult(`Session expires at: ${new Date(data.session.expires_at * 1000).toLocaleString()}`);
+            appendResult(`User ID: ${data.session.user.id}`);
+          } else {
+            appendResult(`No active session found`, 'error');
+          }
+        }
+      } catch (err) {
+        appendResult(`Exception during auth test: ${err.message}`, 'error');
+        console.error(err);
+      } finally {
+        authTestBtn.disabled = false;
+      }
+    });
+    
+    // Test login
+    loginTestBtn.addEventListener('click', async () => {
+      clearResults();
+      loginTestBtn.disabled = true;
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      if (!email || !password) {
+        appendResult('Please provide both email and password', 'error');
+        loginTestBtn.disabled = false;
+        return;
+      }
+      
+      appendResult(`Testing login with email: ${email}...`);
+      
+      try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          loginTestBtn.disabled = false;
+          return;
+        }
+        
+        const startTime = Date.now();
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const duration = Date.now() - startTime;
+        
+        if (error) {
+          appendResult(`Login failed: ${error.message}`, 'error');
+          appendResult(`Error code: ${error.code}`, 'error');
+          appendResult(`Error details: ${JSON.stringify(error)}`, 'error');
+        } else {
+          appendResult(`Successfully logged in in ${duration}ms!`, 'success');
+          appendResult(`User: ${data.user.email}`);
+          appendResult(`User ID: ${data.user.id}`);
+          
+          // Now try to fetch the profile
+          appendResult('Fetching user profile...');
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+            
+          if (profileError) {
+            appendResult(`Failed to fetch profile: ${profileError.message}`, 'error');
+          } else {
+            appendResult(`Profile fetched successfully:`, 'success');
+            appendResult(`Full name: ${profileData.full_name}`);
+            appendResult(`Role: ${profileData.role}`);
+          }
+        }
+      } catch (err) {
+        appendResult(`Exception during login test: ${err.message}`, 'error');
+        console.error(err);
+      } finally {
+        loginTestBtn.disabled = false;
+      }
+    });
+    
+    // Clear local storage
+    clearStorageBtn.addEventListener('click', () => {
+      clearResults();
+      appendResult('Clearing local storage...');
+      localStorage.clear();
+      appendResult('Local storage cleared successfully!', 'success');
+      appendResult('You have been logged out of Supabase.');
+    });
+  </script>
+</body>
+</html> 

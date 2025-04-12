@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML Sanitization Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .test-case {
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+    }
+    .test-input {
+      background-color: #f5f5f5;
+      padding: 10px;
+      margin-bottom: 10px;
+      font-family: monospace;
+    }
+    .test-output {
+      background-color: #e9f7fe;
+      padding: 10px;
+      font-family: monospace;
+    }
+    h2 {
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>HTML Sanitization Test</h1>
+  
+  <div class="test-case">
+    <h2>Test 1: Simple HTML Tags</h2>
+    <div class="test-input">Input: &lt;i&gt;plural of &lt;/i&gt;&lt;b&gt;this&lt;/b&gt;</div>
+    <div class="test-output">Output: <span id="output1"></span></div>
+  </div>
+  
+  <div class="test-case">
+    <h2>Test 2: Complex Example with Quotes</h2>
+    <div class="test-input">Input: &quot;1922, Ben Travers, &lt;i&gt;A Cuckoo in the Nest&lt;/i&gt; — He read the letter aloud. Sophia listened with the studied air of one for whom, even in &lt;b&gt;these&lt;/b&gt; days, a title possessed some surreptitious allurement.&quot;</div>
+    <div class="test-output">Output: <span id="output2"></span></div>
+  </div>
+  
+  <div class="test-case">
+    <h2>Test 3: Example with Grammar Tags</h2>
+    <div class="test-input">Input: (&lt;i&gt;followed by &lt;i&gt;on&lt;/i&gt; or &lt;i&gt;upon&lt;/i&gt;, formerly also by &lt;i&gt;of&lt;/i&gt;&lt;/i&gt;)</div>
+    <div class="test-output">Output: <span id="output3"></span></div>
+  </div>
+  
+  <script>
+    // Sanitization function from our TypeScript code
+    function sanitizeHtmlContent(text) {
+      if (!text) return '';
+      
+      // Replace common HTML entities
+      let sanitized = text
+        .replace(/&quot;/g, '"')
+        .replace(/&ldquo;/g, '"')
+        .replace(/&rdquo;/g, '"')
+        .replace(/&lsquo;/g, "'")
+        .replace(/&rsquo;/g, "'")
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+      
+      // Remove HTML tags but keep their content
+      sanitized = sanitized.replace(/<\/?[^>]+(>|$)/g, '');
+      
+      return sanitized.trim();
+    }
+    
+    // Test cases
+    const test1 = '<i>plural of </i><b>this</b>';
+    const test2 = '"1922, Ben Travers, <i>A Cuckoo in the Nest</i> — He read the letter aloud. Sophia listened with the studied air of one for whom, even in <b>these</b> days, a title possessed some surreptitious allurement."';
+    const test3 = '(<i>followed by <i>on</i> or <i>upon</i>, formerly also by <i>of</i></i>)';
+    
+    // Display results
+    document.getElementById('output1').textContent = sanitizeHtmlContent(test1);
+    document.getElementById('output2').textContent = sanitizeHtmlContent(test2);
+    document.getElementById('output3').textContent = sanitizeHtmlContent(test3);
+  </script>
+</body>
+</html> 
