@@ -7,8 +7,8 @@ app.use(cors());
 app.use(express.json());
 
 // API keys cho từng chức năng
-const TRANSLATION_API_KEY = "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";
-const POS_TAGGING_API_KEY = "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";
+const TRANSLATION_API_KEY = process.env.HUGGINGFACE_API_KEY || "YOUR_API_KEY";
+const POS_TAGGING_API_KEY = process.env.HUGGINGFACE_POS_API_KEY || TRANSLATION_API_KEY;
 
 // Model paths
 const TRANSLATION_MODEL = "facebook/nllb-200-distilled-600M";

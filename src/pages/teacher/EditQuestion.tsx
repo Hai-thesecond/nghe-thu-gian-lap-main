@@ -216,7 +216,7 @@ interface VocabularyItem {
 // Thêm các biến API ở đầu file
 const API_URL = "https://api-inference.huggingface.co/models/facebook/nllb-200-distilled-600M";
 const API_HEADERS = { 
-  "Authorization": "Bearer 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",
+  "Authorization": `Bearer ${import.meta.env.VITE_HUGGINGFACE_API_KEY || 'YOUR_API_KEY'}`,
   "Content-Type": "application/json"
 };
 

@@ -309,11 +309,19 @@ SECURITY DEFINER
 AS $$
 DECLARE
   api_url TEXT := 'https://api-inference.huggingface.co/models/facebook/nllb-200-distilled-600M';
-  api_key TEXT := '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'; -- Thay bằng API key của bạn
+  api_key TEXT;
   payload JSONB;
   response JSONB;
   translated_text TEXT;
 BEGIN
+  -- Get API key from configuration table
+  SELECT value INTO api_key FROM public.application_settings WHERE key = 'huggingface_api_key';
+  
+  -- Fallback if not found
+  IF api_key IS NULL THEN
+    api_key := 'YOUR_API_KEY_HERE'; -- Replace with actual key during deployment
+  END IF;
+
   -- Tạo payload cho API request
   payload := jsonb_build_object(
     'inputs', text_to_translate,
