@@ -374,35 +374,46 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
   - Cài đặt cá nhân hóa
 
 ### 5.2 Quản lý lớp học (Teachers)
+- **Dashboard tổng quan**:
+  - Hiển thị tổng quan các bài tập đã tạo, lớp học và thống kê học sinh
+  - Xem tiến độ và tỷ lệ hoàn thành bài tập của học sinh
+  - Theo dõi số lượng học sinh đã hoàn thành từng bài tập
+  - Thống kê tỉ lệ thành công và tỉ lệ điểm thấp
+- **Tạo và quản lý câu hỏi/bài tập**:
+  - Tạo bài tập nghe với tải lên file audio
+  - Tạo và chỉnh sửa transcript của bài nghe
+  - Tích hợp AssemblyAI để tự động tạo transcript
+  - Tùy chỉnh cấu hình bài tập theo nhiều cấp độ khó
+  - Thiết lập cấu hình riêng cho từng nhóm học sinh (giỏi, trung bình, yếu)
+  - Tự động tạo từ vựng từ transcript bài nghe
+  - Quản lý thời gian làm bài và số lần nghe cho từng nhóm học sinh
+  - Cấu hình tính năng chống gian lận
 - **Tạo và quản lý lớp học**:
-  - Tạo lớp học với tên, mã lớp tự động
+  - Tạo lớp học với tên, mã lớp tự động hoặc tùy chỉnh
   - Chỉnh sửa thông tin lớp học
-  - Quản lý trạng thái hoạt động
-  - Tạo thông báo cho lớp học
+  - Theo dõi số lượng học sinh và bài tập trong lớp
+  - Xem danh sách lớp học với thống kê nhanh
 - **Quản lý học sinh**:
-  - Thêm học sinh vào lớp bằng email hoặc mã lớp
-  - Xóa học sinh khỏi lớp
+  - Thêm học sinh vào lớp bằng email
+  - Tìm kiếm học sinh theo email
   - Xem danh sách học sinh và thông tin chi tiết
-  - Tìm kiếm và lọc học sinh theo nhiều tiêu chí
-  - Theo dõi tiến độ theo thời gian
+  - Truy cập hồ sơ chi tiết của từng học sinh
+  - Xem lịch sử làm bài của học sinh
+  - Phân tích kết quả và tiến độ học tập
 - **Giao bài tập**:
-  - Gán bài tập cho lớp học hoặc học sinh cụ thể
-  - Thiết lập deadline và yêu cầu
-  - Gửi thông báo tự động khi giao bài
-  - Theo dõi trạng thái hoàn thành bài tập
-- **Phân loại học sinh**:
-  - Tự động phân loại theo năng lực
-  - Phân loại thủ công với ghi chú
-  - Xem biểu đồ phân bố năng lực học sinh
+  - Gán bài tập cho lớp học
+  - Thiết lập deadline cho bài tập
+  - Theo dõi tỷ lệ hoàn thành bài tập
+  - Xem kết quả chi tiết của từng học sinh
+- **Quản lý gian lận**:
+  - Theo dõi và quản lý các trường hợp gian lận
+  - Xem danh sách học sinh vi phạm quy chế thi
+  - Mở khóa cho học sinh bị ghi nhận gian lận
+  - Ghi lại lý do mở khóa và lưu trữ nhật ký
 - **Báo cáo và phân tích**:
-  - Xem báo cáo kết quả làm bài chi tiết
-  - Biểu đồ tiến bộ của từng học sinh và lớp
-  - Phân tích lỗi phổ biến để điều chỉnh giảng dạy
-  - Xuất báo cáo dạng CSV/Excel
-- **Tính năng mở rộng**:
-  - Lịch sử hoạt động của lớp học
-  - Thông báo tự động về hoạt động học sinh
-  - Phản hồi và nhận xét cho bài làm
+  - Xem báo cáo kết quả làm bài chi tiết của học sinh
+  - Phân tích điểm số và tiến độ học tập
+  - Xem thông tin chi tiết về từng lần làm bài của học sinh
 
 ### 5.3 Tạo bài tập (Teachers)
 - **Upload file âm thanh**:
@@ -435,34 +446,76 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
   - Đóng/mở bài tập
 
 ### 5.4 Làm bài (Students)
-- **Nghe và làm bài tập**:
-  - Trình phát audio chuyên nghiệp
-  - Chức năng điều chỉnh tốc độ (0.5x-2x)
-  - Điều khiển việc tua và lặp lại audio
-  - Đếm ngược thời gian làm bài
-  - Chế độ làm bài toàn màn hình
-- **Hỗ trợ khi làm bài**:
-- Xem từ vựng trước khi làm bài
-  - Hiển thị gợi ý khi cần thiết
-  - Chức năng lưu bài tự động
-  - Thông báo khi gần hết giờ
-- **Nộp bài**:
-  - Kiểm tra trước khi nộp
-  - Phát hiện câu hỏi chưa trả lời
-  - Hiển thị kết quả ngay lập tức
-  - Phân tích đáp án đúng/sai
-  - So sánh với transcript gốc
-- **Xem kết quả**:
-  - Điểm số chi tiết
-  - Phân tích lỗi
-  - Đề xuất cải thiện
-  - Xem lịch sử các lần làm
-  - So sánh với các lần trước
-- **Theo dõi tiến độ**:
-  - Biểu đồ phát triển
-  - Thống kê các lỗi phổ biến
-  - Đề xuất bài tập phù hợp
-  - Nhận xét của giáo viên
+- **Dashboard sinh viên**:
+  - Tổng quan các bài tập được giao với giao diện trực quan và hiệu ứng animation 
+  - Thống kê số lượng bài tập đã giao, đã hoàn thành và cần hoàn thành
+  - Lọc bài tập theo trạng thái (đã giao, đã hoàn thành, tất cả)
+  - Hiển thị thông tin chi tiết về bài tập (giáo viên, lớp học, deadline)
+  - Cảnh báo thời hạn nộp bài đang đến gần hoặc đã hết hạn
+  - Thông tin xếp hạng và điểm số của sinh viên
+  - Tự động khôi phục phiên làm việc khi có sự cố kết nối
+  - Tính năng làm mới dữ liệu theo thời gian thực
+
+- **Nghe và làm bài tập (Dictation Exercise)**:
+  - Trình phát audio chuyên biệt với nhiều tính năng điều khiển
+  - Thanh tiến trình audio trực quan với thanh trượt
+  - Điều chỉnh tốc độ phát (0.5x-2x) và âm lượng
+  - Đếm ngược thời gian làm bài với thông báo nhắc nhở
+  - Tự động điều chỉnh độ khó dựa trên phân loại học sinh (giỏi, trung bình, yếu)
+  - Chế độ hiển thị khác nhau cho từng cấp độ (câu, cụm từ, từ đơn)
+  - Tùy chỉnh tỷ lệ từ cần điền theo trình độ học sinh
+  - Chế độ fullscreen để tập trung tối đa
+  - Tự động lưu trữ tiến độ làm bài
+
+- **Hệ thống chống gian lận**:
+  - Phát hiện khi học sinh rời khỏi tab hoặc trang
+  - Theo dõi số lần vi phạm quy chế thi
+  - Cảnh báo khi phát hiện hành vi gian lận
+  - Khóa bài làm sau khi vượt quá số lần vi phạm cho phép
+  - Lưu lại lịch sử vi phạm quy chế
+  - Hiển thị thông báo cảnh báo tùy chỉnh
+
+- **Nộp bài và xem kết quả**:
+  - Kiểm tra và xác nhận trước khi nộp bài
+  - Phân tích chi tiết đáp án và lỗi sai
+  - Tính điểm tự động với thuật toán so sánh văn bản thông minh (Levenshtein distance)
+  - Công thức tính điểm tùy chỉnh theo mức độ chính xác
+  - Điều chỉnh điểm dựa trên số lần vi phạm quy chế
+  - Phân tích lỗi theo loại (chính tả, ngữ pháp, thì động từ, từ vựng)
+  - Tạo đề xuất bài tập cải thiện dựa trên điểm yếu
+  - Hiển thị xếp hạng trong lớp
+
+- **Phát lại audio với đồng bộ transcript**:
+  - Nghe lại toàn bộ bài với transcript đầy đủ
+  - Highlight từng từ theo tiến độ audio
+  - Hiển thị vị trí câu trả lời đúng/sai
+  - Chức năng tìm và phát từ cụ thể trong audio
+
+- **Hệ thống học từ vựng**:
+  - Hệ thống flashcard tương tác với hiệu ứng lật thẻ 3D
+  - Giao diện học từ vựng hiện đại với hình ảnh minh họa
+  - Tính năng phát âm từng từ
+  - Hiển thị thông tin từ điển (định nghĩa, ví dụ, từ đồng nghĩa)
+  - Luyện tập nghe từ vựng trong đoạn audio gốc
+  - Hệ thống hồi chiêu (cooldown) để đảm bảo ghi nhớ lâu dài
+  - Theo dõi tiến độ học từng từ
+  - Đồng bộ tiến độ học từ vựng qua các phiên
+
+- **Theo dõi tiến độ và phân tích**:
+  - Biểu đồ tiến bộ điểm số theo thời gian
+  - Phân tích xu hướng và sự cải thiện
+  - Thống kê độ chính xác và thời gian làm bài
+  - So sánh với điểm cao nhất đã đạt được
+  - Đánh giá điểm mạnh và điểm yếu
+  - Hiển thị xếp hạng cá nhân trong lớp học
+  - Phân tích tỷ lệ % học sinh bạn vượt qua
+
+- **Tham gia lớp học**:
+  - Giao diện quản lý lớp học trực quan
+  - Tham gia lớp học bằng mã lớp
+  - Xem danh sách bài tập được giao theo lớp
+  - Theo dõi deadline của từng bài tập
+  - Thống kê tỷ lệ hoàn thành theo lớp
 
 ### 5.5 Hệ thống từ vựng
 - **Flashcards**:

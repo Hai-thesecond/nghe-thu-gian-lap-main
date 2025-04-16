@@ -39,7 +39,14 @@ import {
   Users,
   AlertCircle,
   HelpCircle,
-  FileText
+  FileText,
+  Lock,
+  Gift,
+  Info,
+  TrendingDown,
+  BarChart,
+  Lightbulb,
+  Crown  // Adding more icons for enhanced UI
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -57,6 +64,25 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip';
 import { debounce } from 'lodash';
+// Import Chart.js components before importing Bar
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend
+} from 'chart.js';
+// Register Chart.js components to fix the "linear is not a registered scale" error
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  ChartTooltip,
+  Legend
+);
 import { Bar } from 'react-chartjs-2';
 import { TabsContent } from '@/components/ui/tabs';
 
@@ -135,6 +161,15 @@ interface Achievement {
   achieved: boolean;
   achievedDate?: string;
   progress: number;
+  unlocked?: boolean;
+  reward?: {
+    type: 'title' | 'avatar';
+    value: string;
+    previewUrl?: string;
+  };
+  category?: 'learning' | 'social' | 'performance';
+  level?: 'bronze' | 'silver' | 'gold' | 'platinum';
+  requirementDescription?: string;
 }
 
 // Thêm interface cho theo dõi chuỗi thành tích
@@ -382,8 +417,7 @@ const StudentProgress = () => {
         toast.error('Cannot load class data');
         setAllClasses([]);
       } else {
-        const validClasses = (classesData || [])
-          .filter((item: ClassData) => item.classes && (
+        const validClasses = (classesData || []).filter((item: ClassData) => item.classes && (
             Array.isArray(item.classes) 
               ? item.classes[0]?.id && item.classes[0]?.name 
               : (item.classes as ClassInfo)?.id && (item.classes as ClassInfo)?.name
@@ -405,8 +439,6 @@ const StudentProgress = () => {
       await Promise.all([
         fetchProgressData(user.id),
         fetchErrorAnalysis(user.id),
-        // Chỉ gọi analyzeErrors nếu không sử dụng SQL view
-        !USING_SQL_VIEW ? analyzeErrors(user.id) : Promise.resolve(),
         calculateAchievements(user.id)
       ]);
 
@@ -605,14 +637,8 @@ const StudentProgress = () => {
   // Cập nhật hàm fetchErrorAnalysis để truy vấn từ SQL view
   const fetchErrorAnalysis = async (studentId: string) => {
     try {
-      if (!USING_SQL_VIEW) {
-        console.log('[DEBUG] Using frontend analysis - SQL View is disabled');
-        await analyzeErrors(studentId);
-        return;
-      }
-
       console.log('[DEBUG] Fetching error analysis from SQL view');
-      // Truy vấn từ view mới thay vì bảng error_analysis trực tiếp
+      // Truy vấn từ view SQL
       const { data, error } = await supabase
         .from('student_error_analysis_view')
         .select('*')
@@ -621,9 +647,8 @@ const StudentProgress = () => {
       
       if (error) {
         console.error('[ERROR] Error fetching error analysis from view:', error);
-        console.log('[DEBUG] Falling back to frontend analysis');
-        // Gọi phân tích frontend khi view SQL bị lỗi
-        await analyzeErrors(studentId);
+        setErrorTypes([{ type: 'Không thể tải dữ liệu phân tích', count: 1 }]);
+        setCommonMistakes([]);
         return;
       }
       
@@ -651,13 +676,11 @@ const StudentProgress = () => {
             }
           } catch (parseError) {
             console.error('[ERROR] Error parsing error_type_counts:', parseError);
-            setErrorTypes([{ type: 'Lỗi khi phân tích', count: 1 }]);
-            await analyzeErrors(studentId);
+            setErrorTypes([{ type: 'Lỗi khi phân tích dữ liệu', count: 1 }]);
           }
         } else {
           console.log('[DEBUG] No error_type_counts in data');
           setErrorTypes([{ type: 'Chưa có dữ liệu phân tích', count: 1 }]);
-          await analyzeErrors(studentId);
         }
         
         // Xử lý common_mistakes
@@ -679,21 +702,30 @@ const StudentProgress = () => {
             }));
             
             console.log('[DEBUG] Setting common mistakes from view:', formattedMistakes);
+            if (formattedMistakes.length > 0) {
             setCommonMistakes(formattedMistakes);
+            } else {
+              console.log('[DEBUG] No valid common mistakes found in data, leaving empty');
+              setCommonMistakes([]);
+            }
           } catch (parseError) {
             console.error('[ERROR] Error parsing common_mistakes:', parseError);
+            console.log('[DEBUG] Unable to parse common_mistakes, leaving array empty');
+            setCommonMistakes([]);
           }
+        } else {
+          console.log('[DEBUG] No common_mistakes in data from view');
+          setCommonMistakes([]);
         }
       } else {
         console.log('[DEBUG] No data returned from student_error_analysis_view');
         setErrorTypes([{ type: 'Chưa có dữ liệu phân tích', count: 1 }]);
-        await analyzeErrors(studentId);
+        setCommonMistakes([]);
       }
     } catch (error) {
       console.error('[ERROR] Exception in fetchErrorAnalysis:', error);
       setErrorTypes([{ type: 'Lỗi khi phân tích', count: 1 }]);
-      // Fallback to frontend analysis
-      await analyzeErrors(studentId);
+      setCommonMistakes([]);
     }
   };
 
@@ -1024,7 +1056,7 @@ const StudentProgress = () => {
               { type: 'Sai nghĩa', count: 0 }
             ]);
           }
-        }, 500);
+        }, 100);
         
         return;
       }
@@ -1035,7 +1067,28 @@ const StudentProgress = () => {
         // Xử lý từng answer trong background
         let successCount = 0;
         
-        for (const answer of answers) {
+        // Process answers in smaller batches to avoid message channel timeout
+        const processBatch = async (batch: any[], index: number) => {
+          if (index >= batch.length) {
+            if (successCount === 0 && answers.length > 0) {
+              console.log('[DEBUG] No successful error analyses, falling back to frontend analysis');
+              setTimeout(() => {
+                const currentErrors = errorTypes || [];
+                if (currentErrors.length === 0 || (currentErrors.length === 1 && currentErrors[0].type.includes('Đang'))) {
+                  setErrorTypes([
+                    { type: 'Phân tích trên frontend', count: 1 },
+                    { type: 'Không điền', count: 0 },
+                    { type: 'Sai chính tả', count: 0 },
+                    { type: 'Sai nghĩa', count: 0 }
+                  ]);
+                }
+              }, 100);
+            }
+            console.log('[DEBUG] Finished initializing error analysis');
+            return;
+          }
+          
+          const answer = batch[index];
           try {
             console.log(`[DEBUG] Analyzing answer: ${answer.id}`);
             // Gọi analyze_student_errors thông qua direct SQL insert - không dùng RPC
@@ -1067,25 +1120,14 @@ const StudentProgress = () => {
           } catch (err) {
             console.error(`[ERROR] Exception analyzing answer ${answer.id}:`, err);
           }
-        }
+          
+          // Process next item with a small delay to prevent blocking
+          setTimeout(() => processBatch(batch, index + 1), 50);
+        };
         
-        if (successCount === 0 && answers.length > 0) {
-          console.log('[DEBUG] No successful error analyses, falling back to frontend analysis');
-          // Không thành công - đảm bảo UI hiển thị thông tin
-          setTimeout(() => {
-            const currentErrors = errorTypes || [];
-            if (currentErrors.length === 0 || (currentErrors.length === 1 && currentErrors[0].type.includes('Đang'))) {
-              setErrorTypes([
-                { type: 'Phân tích trên frontend', count: 1 },
-                { type: 'Không điền', count: 0 },
-                { type: 'Sai chính tả', count: 0 },
-                { type: 'Sai nghĩa', count: 0 }
-              ]);
-            }
-          }, 500);
-        }
+        // Start processing the first batch
+        processBatch(answers, 0);
         
-        console.log('[DEBUG] Finished initializing error analysis');
       } else {
         console.log('[DEBUG] No completed answers found for analysis');
         
@@ -1098,7 +1140,7 @@ const StudentProgress = () => {
               { type: 'Cần hoàn thành bài tập', count: 0 }
             ]);
           }
-        }, 500);
+        }, 100);
       }
     } catch (error) {
       console.error('[ERROR] Error in initializeErrorAnalysis:', error);
@@ -1114,7 +1156,7 @@ const StudentProgress = () => {
             { type: 'Sai nghĩa', count: 0 }
           ]);
         }
-      }, 500);
+      }, 100);
     }
   };
   
@@ -1623,7 +1665,14 @@ const StudentProgress = () => {
           condition: 90,
           achieved: true,
           achievedDate: new Date().toISOString(),
-          progress: 100
+          progress: 100,
+          unlocked: true,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Xuất Sắc',
+          },
+          category: 'performance',
+          level: 'gold'
         });
       }
 
@@ -1638,7 +1687,15 @@ const StudentProgress = () => {
           condition: 1,
           achieved: true,
           achievedDate: new Date().toISOString(),
-          progress: 100
+          progress: 100,
+          unlocked: true,
+          reward: {
+            type: 'avatar',
+            value: 'Crown Avatar',
+            previewUrl: '/images/avatars/crown.svg'
+          },
+          category: 'performance',
+          level: 'platinum'
         });
       }
 
@@ -1700,9 +1757,287 @@ const StudentProgress = () => {
           condition: 7,
           achieved: true,
           achievedDate: new Date().toISOString(),
-          progress: 100
+          progress: 100,
+          unlocked: true,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Siêng Năng'
+          },
+          category: 'learning',
+          level: 'silver'
         });
       }
+
+      // Thêm các thành tích tiềm năng (chưa đạt được)
+      const potentialAchievements: Achievement[] = [
+        // Thành tích điểm số
+        {
+          id: 'score-80',
+          title: 'Giỏi',
+          description: 'Đạt điểm trung bình trên 8.0',
+          icon: '🥇',
+          type: 'score',
+          condition: 80,
+          achieved: top5AverageScore >= 80,
+          progress: Math.min(100, Math.round((top5AverageScore / 80) * 100)),
+          unlocked: top5AverageScore >= 80,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Giỏi'
+          },
+          category: 'performance',
+          level: 'silver',
+          requirementDescription: 'Đạt điểm trung bình trên 8.0 trong các bài kiểm tra gần đây'
+        },
+        {
+          id: 'score-70',
+          title: 'Khá',
+          description: 'Đạt điểm trung bình trên 7.0',
+          icon: '🥈',
+          type: 'score',
+          condition: 70,
+          achieved: top5AverageScore >= 70,
+          progress: Math.min(100, Math.round((top5AverageScore / 70) * 100)),
+          unlocked: top5AverageScore >= 70,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Khá'
+          },
+          category: 'performance',
+          level: 'bronze',
+          requirementDescription: 'Đạt điểm trung bình trên 7.0 trong các bài kiểm tra gần đây'
+        },
+        // Thành tích streak
+        {
+          id: 'streak-15',
+          title: 'Chăm Chỉ',
+          description: '15 ngày liên tiếp học tập',
+          icon: '🔥',
+          type: 'streak',
+          condition: 15,
+          achieved: currentStreak >= 15,
+          progress: Math.min(100, Math.round((currentStreak / 15) * 100)),
+          unlocked: currentStreak >= 15,
+          reward: {
+            type: 'avatar',
+            value: 'Fire Avatar',
+            previewUrl: '/images/avatars/fire.svg'  // Updated path
+          },
+          category: 'learning',
+          level: 'gold',
+          requirementDescription: 'Hoàn thành bài tập 15 ngày liên tiếp'
+        },
+        {
+          id: 'streak-30',
+          title: 'Kiên Trì',
+          description: '30 ngày liên tiếp học tập',
+          icon: '🌟',
+          type: 'streak',
+          condition: 30,
+          achieved: currentStreak >= 30,
+          progress: Math.min(100, Math.round((currentStreak / 30) * 100)),
+          unlocked: currentStreak >= 30,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Kiên Trì'
+          },
+          category: 'learning',
+          level: 'platinum',
+          requirementDescription: 'Hoàn thành bài tập 30 ngày liên tiếp'
+        },
+        // Thành tích xếp hạng
+        {
+          id: 'rank-3',
+          title: 'Top 3',
+          description: 'Trong top 3 của lớp',
+          icon: '🥉',
+          type: 'rank',
+          condition: 3,
+          achieved: rankData.position <= 3 && rankData.position > 0,
+          progress: rankData.position <= 3 ? 100 : Math.min(100, Math.round((10 / rankData.position) * 100)),
+          unlocked: rankData.position <= 3 && rankData.position > 0,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Xuất Sắc'
+          },
+          category: 'performance',
+          level: 'bronze',
+          requirementDescription: 'Đạt thứ hạng trong top 3 của lớp'
+        },
+        // Thành tích hoạt động
+        {
+          id: 'activity-10',
+          title: 'Năng Động',
+          description: 'Hoàn thành 10 bài kiểm tra',
+          icon: '🚀',
+          type: 'milestone',
+          condition: 10,
+          achieved: (scoreHistory?.length || 0) >= 10,
+          progress: Math.min(100, Math.round(((scoreHistory?.length || 0) / 10) * 100)),
+          unlocked: (scoreHistory?.length || 0) >= 10,
+          reward: {
+            type: 'avatar',
+            value: 'Rocket Avatar',
+            previewUrl: '/images/avatars/rocket.svg'  // Updated path
+          },
+          category: 'learning',
+          level: 'bronze',
+          requirementDescription: 'Hoàn thành ít nhất 10 bài kiểm tra'
+        },
+        // Thêm thành tích mới - Word Master
+        {
+          id: 'vocabulary-50',
+          title: 'Từ Vựng Tốt',
+          description: 'Học 50 từ vựng mới',
+          icon: '📚',
+          type: 'milestone',
+          condition: 50,
+          // Placeholder - replace with actual tracking logic
+          achieved: false,
+          progress: 20, // Placeholder
+          unlocked: false,
+          reward: {
+            type: 'avatar',
+            value: 'Brain Avatar',
+            previewUrl: '/images/avatars/brain.svg'
+          },
+          category: 'learning',
+          level: 'silver',
+          requirementDescription: 'Học và ghi nhớ 50 từ vựng mới'
+        },
+        // Thêm thành tích - Exercise Champion
+        {
+          id: 'activity-20',
+          title: 'Thành Thạo',
+          description: 'Hoàn thành 20 bài kiểm tra',
+          icon: '🏅',
+          type: 'milestone',
+          condition: 20,
+          achieved: (scoreHistory?.length || 0) >= 20,
+          progress: Math.min(100, Math.round(((scoreHistory?.length || 0) / 20) * 100)),
+          unlocked: (scoreHistory?.length || 0) >= 20,
+          reward: {
+            type: 'avatar',
+            value: 'Medal Avatar',
+            previewUrl: '/images/avatars/medal.svg'
+          },
+          category: 'learning',
+          level: 'silver',
+          requirementDescription: 'Hoàn thành ít nhất 20 bài kiểm tra'
+        },
+        // Thêm thành tích - Daily Login
+        {
+          id: 'login-10',
+          title: 'Đều Đặn',
+          description: 'Đăng nhập 10 ngày',
+          icon: '📅',
+          type: 'milestone',
+          condition: 10,
+          // Placeholder - replace with actual login tracking logic
+          achieved: false,
+          progress: 30, // Placeholder
+          unlocked: false,
+          reward: {
+            type: 'avatar',
+            value: 'Trophy Avatar',
+            previewUrl: '/images/avatars/trophy.svg'
+          },
+          category: 'learning',
+          level: 'bronze',
+          requirementDescription: 'Đăng nhập học tập 10 ngày (không cần liên tiếp)'
+        },
+        // Thêm thành tích - Perfect Streak
+        {
+          id: 'perfect-streak-3',
+          title: 'Hoàn Hảo',
+          description: '3 bài kiểm tra liên tiếp đạt điểm tối đa',
+          icon: '💯',
+          type: 'milestone',
+          condition: 3,
+          // Placeholder - replace with actual tracking logic
+          achieved: false,
+          progress: 0, // Placeholder
+          unlocked: false,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Hoàn Hảo'
+          },
+          category: 'performance',
+          level: 'gold',
+          requirementDescription: 'Đạt điểm tối đa trong 3 bài kiểm tra liên tiếp'
+        },
+        // Thêm thành tích - Accuracy King
+        {
+          id: 'accuracy-95',
+          title: 'Chuẩn Xác',
+          description: 'Độ chính xác trung bình trên 95%',
+          icon: '🎯',
+          type: 'score',
+          condition: 95,
+          // Placeholder - replace with actual accuracy tracking
+          achieved: false,
+          progress: 70, // Placeholder
+          unlocked: false,
+          reward: {
+            type: 'title',
+            value: 'Học Sinh Chuẩn Xác'
+          },
+          category: 'performance',
+          level: 'silver',
+          requirementDescription: 'Đạt độ chính xác trung bình trên 95% trong các bài kiểm tra'
+        },
+        // Thêm thành tích - Perfect Score
+        {
+          id: 'perfect-score',
+          title: 'Điểm Tuyệt Đối',
+          description: 'Đạt điểm tối đa trong một bài kiểm tra',
+          icon: '⭐',
+          type: 'score',
+          condition: 100,
+          achieved: scoreHistory && scoreHistory.some(record => record.score >= 100),
+          progress: scoreHistory && scoreHistory.some(record => record.score >= 100) ? 100 : 0,
+          unlocked: scoreHistory && scoreHistory.some(record => record.score >= 100),
+          reward: {
+            type: 'avatar',
+            value: 'Star Avatar', 
+            previewUrl: '/images/avatars/star.svg'
+          },
+          category: 'performance',
+          level: 'gold',
+          requirementDescription: 'Đạt điểm tối đa (10/10) trong một bài kiểm tra'
+        },
+        // Thêm thành tích - Speed Demon
+        {
+          id: 'speed-demon',
+          title: 'Tốc Độ',
+          description: 'Hoàn thành bài kiểm tra nhanh chóng',
+          icon: '⚡',
+          type: 'milestone',
+          condition: 1,
+          // Placeholder - replace with actual speed tracking
+          achieved: false,
+          progress: 40, // Placeholder for demonstration
+          unlocked: false,
+          reward: {
+            type: 'avatar',
+            value: 'Lightning Avatar',
+            previewUrl: '/images/avatars/lightning.svg'
+          },
+          category: 'performance',
+          level: 'gold',
+          requirementDescription: 'Hoàn thành bài kiểm tra trong thời gian ngắn'
+        }
+      ];
+
+      // Kết hợp thành tích đã đạt được và tiềm năng
+      const allAchievements = [...achievements];
+      
+      // Thêm các thành tích tiềm năng chưa có trong danh sách thành tích đã đạt được
+      potentialAchievements.forEach(potential => {
+        if (!allAchievements.some(a => a.id === potential.id)) {
+          allAchievements.push(potential);
+        }
+      });
 
       // Tính toán dự đoán
       const recentScores = scoreHistory?.slice(-5).map(record => record.score) || [];
@@ -1712,16 +2047,26 @@ const StudentProgress = () => {
 
       setPredictions({
         nextScore: Math.min(100, averageScore + (trend === 'up' ? 5 : trend === 'down' ? -2 : 0)),
-        confidence: 0.7,
+        confidence: recentScores.length > 1 ? Math.min(0.9, 0.4 + (recentScores.length / 10)) : 0.5, // Calculate confidence based on data amount
         trend,
         factors: [
-          { factor: 'Điểm gần đây', impact: 0.6 },
-          { factor: 'Tần suất học tập', impact: 0.4 }
-        ]
+          { 
+            factor: 'Điểm gần đây', 
+            impact: recentScores.length > 0 ? Math.max(0.3, Math.min(0.8, (recentScores.reduce((a, b) => a + b, 0) / recentScores.length) / 100)) : 0.3 
+          },
+          { 
+            factor: 'Tần suất học tập', 
+            impact: currentStreak > 0 ? Math.max(0.2, Math.min(0.7, currentStreak / 20)) : 0.2 
+          },
+          { 
+            factor: 'Độ chính xác', 
+            impact: averageScore > 0 ? Math.max(0.1, Math.min(0.6, averageScore / 100)) : 0.1 
+          }
+        ].sort((a, b) => b.impact - a.impact) // Sort factors by impact
       });
 
       // Cập nhật state
-      setAchievements(achievements);
+      setAchievements(allAchievements);
 
       // Kiểm tra thành tích mới
       const lastAchieved = achievements.find(a => 
@@ -2295,37 +2640,79 @@ const StudentProgress = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Thêm card thành tích */}
           <motion.div variants={cardVariants}>
-            <Card className="shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+            <Card className="shadow-md hover:shadow-lg transition-shadow overflow-hidden h-[600px] flex flex-col">
               <CardHeader className="bg-gradient-to-r from-purple-50 to-transparent">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Medal className="h-5 w-5 text-purple-500" />
+                    <div className="relative">
+                      <Medal className="h-6 w-6 text-purple-500" />
+                      <motion.div
+                        className="absolute -top-1 -right-1 w-2 h-2 bg-purple-300 rounded-full"
+                        animate={{ scale: [1, 1.5, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                      />
+                    </div>
                     <div>
-                      <CardTitle>Thành tích</CardTitle>
-                      <CardDescription>Các thành tích đã đạt được</CardDescription>
+                      <CardTitle className="flex items-center">
+                        Thành tích
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full ml-1">
+                                <HelpCircle className="h-4 w-4 text-purple-400" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p>Thành tích được tính dựa trên điểm số, thời gian học tập liên tục và xếp hạng của bạn</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </CardTitle>
+                      <CardDescription className="text-sm">
+                        Thành tựu học tập và phần thưởng của bạn
+                      </CardDescription>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="bg-purple-50">
+                    <Badge variant="outline" className="bg-purple-50 flex items-center">
                       <Trophy className="h-4 w-4 mr-1 text-purple-500" />
-                      {achievements.length} thành tích
+                      <motion.span 
+                        animate={{ scale: [1, 1.1, 1] }} 
+                        transition={{ repeat: Infinity, duration: 2 }}
+                      >
+                        {achievements.filter(a => a.achieved).length}/{achievements.length} thành tích
+                      </motion.span>
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-4">
+
+              <CardContent className="pt-4 flex-grow flex flex-col">
                 {showAchievementAnimation && lastAchievement && (
                   <motion.div
                     initial={{ scale: 0.5, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.5, opacity: 0 }}
-                    className="mb-4 bg-gradient-to-r from-purple-50 to-transparent p-4 rounded-lg"
+                    className="mb-4 bg-gradient-to-r from-purple-50 to-transparent p-4 rounded-lg border-l-4 border-purple-300"
                   >
                     <div className="flex items-center space-x-3">
-                      <div className="text-3xl">{lastAchievement.icon}</div>
+                      <motion.div 
+                        className="text-3xl"
+                        animate={{ rotate: [0, 10, -10, 10, 0] }}
+                        transition={{ repeat: 3, duration: 0.5 }}
+                      >
+                        {lastAchievement.icon}
+                      </motion.div>
                       <div>
-                        <div className="font-semibold text-purple-700">
+                        <div className="font-semibold text-purple-700 flex items-center">
                           Thành tích mới!
+                          <motion.div 
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 3 }}
+                            className="ml-1"
+                          >
+                            <Sparkles className="h-4 w-4 text-yellow-400" />
+                          </motion.div>
                         </div>
                         <div className="text-sm text-purple-600">
                           {lastAchievement.title} - {lastAchievement.description}
@@ -2335,8 +2722,16 @@ const StudentProgress = () => {
                   </motion.div>
                 )}
 
-                <div className="space-y-4">
-                  {achievements.map((achievement, index) => (
+                <Tabs defaultValue="achieved" className="flex-grow flex flex-col">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="achieved">Đã đạt</TabsTrigger>
+                    <TabsTrigger value="available">Chưa đạt</TabsTrigger>
+                    <TabsTrigger value="rewards">Phần thưởng</TabsTrigger>
+                  </TabsList>
+
+                  <div className="flex-grow flex flex-col">
+                    <TabsContent value="achieved" className="space-y-4 flex-grow overflow-auto">
+                      {achievements.filter(a => a.achieved).map((achievement, index) => (
                     <motion.div
                       key={achievement.id}
                       initial={{ x: -20, opacity: 0 }}
@@ -2347,88 +2742,303 @@ const StudentProgress = () => {
                       <motion.div
                         whileHover={{ scale: 1.2, rotate: 360 }}
                         transition={{ duration: 0.5 }}
-                        className="text-2xl"
+                            className={`text-2xl p-2 rounded-full ${
+                              achievement.level === 'platinum' ? 'bg-gradient-to-br from-indigo-200 to-indigo-100 shadow-md' :
+                              achievement.level === 'gold' ? 'bg-gradient-to-br from-yellow-200 to-yellow-100 shadow-md' :
+                              achievement.level === 'silver' ? 'bg-gradient-to-br from-gray-200 to-gray-100 shadow-md' :
+                              'bg-gradient-to-br from-amber-200 to-amber-100 shadow-md'
+                            }`}
                       >
                         {achievement.icon}
                       </motion.div>
                       <div className="flex-1">
-                        <div className="font-semibold text-purple-700">
+                            <div className="font-medium text-gray-700 flex items-center">
                           {achievement.title}
+                              {achievement.reward && (
+                                <Badge variant="outline" className="ml-2 text-xs bg-gradient-to-r from-purple-50 to-purple-100 text-purple-600">
+                                  {achievement.reward.type === 'title' ? '👑 Danh hiệu' : '🖼️ Avatar'}
+                                </Badge>
+                              )}
                         </div>
-                        <div className="text-sm text-purple-600">
+                            <div className="text-sm text-gray-600">
                           {achievement.description}
                         </div>
-                      </div>
-                      <div className="text-xs text-purple-500">
-                        {new Date(achievement.achievedDate!).toLocaleDateString('vi-VN')}
                       </div>
                     </motion.div>
                   ))}
 
-                  {achievements.length === 0 && (
-                    <div className="text-center py-8">
-                      <Trophy className="h-12 w-12 text-purple-200 mx-auto mb-2" />
-                      <p className="text-purple-600">Chưa có thành tích nào</p>
-                      <p className="text-sm text-purple-500 mt-1">
-                        Hãy tiếp tục cố gắng để đạt được các thành tích!
+                      {achievements.filter(a => a.achieved).length === 0 && (
+                        <div className="text-center py-12 flex-grow flex items-center justify-center flex-col">
+                          <AlertCircle className="h-12 w-12 text-gray-200 mx-auto mb-2" />
+                          <p className="text-gray-600">Bạn chưa đạt được thành tích nào</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Tiếp tục luyện tập để mở khóa thành tích!
                       </p>
                     </div>
                   )}
-                </div>
+                    </TabsContent>
 
-                {streakRecord.currentStreak > 0 && (
-                  <div className="mt-6 p-4 rounded-lg bg-gradient-to-r from-amber-50 to-transparent">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
+                    <TabsContent value="available" className="space-y-4 flex-grow overflow-auto">
+                      {achievements.filter(a => !a.achieved).map((achievement, index) => (
                         <motion.div
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ repeat: Infinity, duration: 1.5 }}
+                          key={achievement.id}
+                          initial={{ x: -20, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="p-3 rounded-lg bg-gradient-to-r from-gray-50 to-transparent hover:from-gray-100 transition-colors"
                         >
-                          🔥
-                        </motion.div>
-                        <div>
-                          <div className="font-semibold text-amber-700">
-                            Chuỗi học tập: {streakRecord.currentStreak} ngày
+                          <div className="flex items-center space-x-3">
+                            <div className={`text-2xl p-2 rounded-full bg-gray-100 grayscale`}>
+                              {achievement.icon}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-700 flex items-center">
+                                {achievement.title}
+                                {achievement.reward && (
+                                  <Badge variant="outline" className="ml-2 text-xs bg-gray-50 text-gray-500">
+                                    {achievement.reward.type === 'title' ? '👑 Danh hiệu' : '🖼️ Avatar'}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {achievement.description}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-amber-600">
-                            Kỷ lục: {streakRecord.bestStreak} ngày
+                          
+                          <div className="mt-2">
+                            <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
+                              <span>Yêu cầu: {achievement.requirementDescription}</span>
+                              <span>{achievement.progress}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${achievement.progress}%` }}
+                                transition={{ duration: 1 }}
+                                className={`h-full ${
+                                  achievement.level === 'platinum' ? 'bg-indigo-400' :
+                                  achievement.level === 'gold' ? 'bg-yellow-400' :
+                                  achievement.level === 'silver' ? 'bg-gray-400' :
+                                  'bg-amber-400'
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+
+                      {achievements.filter(a => !a.achieved).length === 0 && (
+                        <div className="text-center py-12">
+                          <Award className="h-12 w-12 text-green-200 mx-auto mb-2" />
+                          <p className="text-green-600">Bạn đã đạt được tất cả thành tích!</p>
+                          <p className="text-sm text-green-500 mt-1">
+                            Thật là xuất sắc! Hãy tiếp tục duy trì phong độ.
+                          </p>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="rewards" className="flex-grow overflow-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h3 className="font-semibold text-purple-700 mb-2 flex items-center">
+                            <Crown className="h-5 w-5 mr-1 text-purple-500" />
+                            <span>Danh hiệu</span>
+                          </h3>
+                          <div className="space-y-3">
+                            {achievements
+                              .filter(a => a.reward?.type === 'title')
+                              .map((achievement, index) => (
+                                <motion.div
+                                  key={achievement.id}
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: index * 0.1 }}
+                                  whileHover={{ scale: 1.02 }}
+                                  className={`p-3 rounded-lg border ${
+                                    achievement.achieved 
+                                      ? 'border-purple-200 bg-gradient-to-r from-purple-50 to-transparent shadow-sm' 
+                                      : 'border-gray-200 bg-gray-50 opacity-75'
+                                  }`}
+                                >
+                                  <div className="flex items-center">
+                                    <motion.div 
+                                      className="mr-2 text-lg"
+                                      whileHover={{ rotate: 10 }}
+                                    >
+                                      {achievement.icon}
+                                    </motion.div>
+                                    <div className="flex-1">
+                                      <div className={`font-medium flex items-center ${achievement.achieved ? 'text-purple-700' : 'text-gray-500'}`}>
+                                        {achievement.reward?.value}
+                                        {achievement.achieved && (
+                                          <motion.div
+                                            animate={{ rotate: 360 }}
+                                            transition={{ repeat: Infinity, duration: 5 }}
+                                            className="ml-1"
+                                          >
+                                            <Sparkles className="h-3 w-3 text-yellow-400" />
+                                          </motion.div>
+                                        )}
+                          </div>
+                                      <div className="text-xs text-gray-500">
+                                        Từ thành tích: {achievement.title}
+                          </div>
+                        </div>
+                                    {achievement.achieved ? (
+                                      <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
+                                        Đã mở khóa
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-gray-50 text-gray-500">
+                                        <Lock className="h-3 w-3 mr-1" /> Khóa
+                                      </Badge>
+                                    )}
+                      </div>
+                                </motion.div>
+                              ))}
+                      </div>
+                    </div>
+
+                        <div>
+                          <h3 className="font-semibold text-cyan-700 mb-2 flex items-center">
+                            <div className="mr-1 p-1 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full">
+                              🖼️
+                            </div>
+                            <span>Avatar</span>
+                          </h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            {achievements
+                              .filter(a => a.reward?.type === 'avatar')
+                              .map((achievement, index) => (
+                                <motion.div
+                                  key={achievement.id}
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{ delay: index * 0.1 }}
+                                  whileHover={{ y: -5, scale: 1.03 }}
+                                  className={`p-3 rounded-lg border ${
+                                    achievement.achieved 
+                                      ? 'border-cyan-200 bg-gradient-to-br from-cyan-50 to-blue-50 shadow-md' 
+                                      : 'border-gray-200 bg-gray-50'
+                                  }`}
+                                >
+                                  <div className="aspect-square rounded-lg bg-white flex items-center justify-center relative overflow-hidden shadow-inner">
+                                    {achievement.reward?.previewUrl ? (
+                                      <>
+                                        <img 
+                                          src={achievement.reward?.previewUrl} 
+                                          alt={achievement.reward?.value}
+                                          className={`w-full h-full object-cover transition-all duration-300 ${!achievement.achieved ? 'grayscale opacity-40' : 'hover:scale-110'}`}
+                                        />
+                                        {!achievement.achieved && (
+                                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+                                            <motion.div
+                                              whileHover={{ rotate: 15 }}
+                                            >
+                                              <Lock className="text-white h-6 w-6 drop-shadow-md" />
+                                            </motion.div>
+                  </div>
+                )}
+                                        {achievement.achieved && (
+                                          <motion.div
+                                            className="absolute bottom-1 right-1 bg-green-500 rounded-full p-1"
+                                            initial={{ scale: 0 }}
+                                            animate={{ scale: 1 }}
+                                            transition={{ delay: 0.5 + index * 0.1 }}
+                                          >
+                                            <Sparkles className="h-3 w-3 text-white" />
+                                          </motion.div>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <div className="text-3xl">{achievement.icon}</div>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 text-xs text-center font-medium text-gray-700">
+                                    {achievement.reward?.value}
+                                  </div>
+                                </motion.div>
+                              ))}
                           </div>
                         </div>
                       </div>
-                      <div className="text-amber-500 text-sm">
-                        Tiếp tục phát huy!
-                      </div>
-                    </div>
+                    </TabsContent>
                   </div>
-                )}
+                </Tabs>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* Thêm card dự đoán */}
+          {/* Thêm card dự đoán - with enhanced UI */}
           <motion.div variants={cardVariants}>
-            <Card className="shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+            <Card className="shadow-md hover:shadow-lg transition-shadow overflow-hidden h-[600px] flex flex-col">
               <CardHeader className="bg-gradient-to-r from-cyan-50 to-transparent">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <TrendingUp className="h-5 w-5 text-cyan-500" />
+                    <div className="relative">
+                      <Lightbulb className="h-6 w-6 text-cyan-500" />
+                      <motion.div
+                        className="absolute -top-1 -right-1 w-2 h-2 bg-cyan-300 rounded-full"
+                        animate={{ scale: [1, 1.5, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                      />
+                    </div>
                     <div>
-                      <CardTitle>Dự đoán & Phân tích</CardTitle>
-                      <CardDescription>Xu hướng học tập của bạn</CardDescription>
+                      <CardTitle className="flex items-center">
+                        Dự đoán & Phân tích
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full ml-1">
+                                <HelpCircle className="h-4 w-4 text-cyan-400" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p>Dựa trên lịch sử học tập của bạn, hệ thống dự đoán điểm số và đưa ra phân tích để giúp bạn cải thiện</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </CardTitle>
+                      <CardDescription className="text-sm">
+                        Nhận dự đoán thông minh cho việc học của bạn
+                      </CardDescription>
                     </div>
                   </div>
+                  {predictions.trend && (
+                    <Badge variant="outline" className={`
+                      ${predictions.trend === 'up' ? 'text-green-600 bg-green-50 border-green-200' :
+                        predictions.trend === 'down' ? 'text-red-600 bg-red-50 border-red-200' :
+                        'text-blue-600 bg-blue-50 border-blue-200'}
+                    `}>
+                      {predictions.trend === 'up' ? (
+                        <TrendingUp className="h-4 w-4 mr-1" />
+                      ) : predictions.trend === 'down' ? (
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                      ) : (
+                        <BarChart className="h-4 w-4 mr-1" />
+                      )}
+                      {predictions.trend === 'up' ? 'Đang tiến bộ' :
+                       predictions.trend === 'down' ? 'Cần cố gắng' : 'Ổn định'}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
-              <CardContent className="pt-4">
-                <div className="space-y-6">
-                  {/* Dự đoán điểm số */}
-                  <div className="p-4 rounded-lg bg-gradient-to-r from-cyan-50 to-transparent">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="font-semibold text-cyan-700">Dự đoán điểm số tiếp theo</div>
+              
+              <CardContent className="pt-4 flex-grow flex flex-col overflow-auto">
+                <div className="space-y-6 flex-grow">
+                  {/* Dự đoán điểm số with enhanced UI */}
+                  <div className="p-4 rounded-lg bg-gradient-to-r from-cyan-50 to-transparent border-l-4 border-cyan-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="font-semibold text-cyan-700 flex items-center">
+                        <BarChart3 className="h-5 w-5 mr-2 text-cyan-500" />
+                        Dự đoán điểm số tiếp theo
+                      </div>
                       <Badge variant="outline" className={`
-                        ${predictions.trend === 'up' ? 'text-green-600 bg-green-50' :
-                          predictions.trend === 'down' ? 'text-red-600 bg-red-50' :
-                          'text-blue-600 bg-blue-50'}
+                        ${predictions.trend === 'up' ? 'text-green-600 bg-green-50 border-green-200' :
+                          predictions.trend === 'down' ? 'text-red-600 bg-red-50 border-red-200' :
+                          'text-blue-600 bg-blue-50 border-blue-200'}
                       `}>
                         <motion.div
                           animate={{
@@ -2443,30 +3053,43 @@ const StudentProgress = () => {
                       </Badge>
                     </div>
                     
-                    <div className="flex items-center space-x-4">
-                      <div className="text-3xl font-bold text-cyan-600">
+                    <div className="flex items-center space-x-4 mb-3">
+                      <motion.div 
+                        className="text-4xl font-bold text-cyan-600"
+                        initial={{ scale: 0.9 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.5 }}
+                      >
                         {(predictions.nextScore/10).toFixed(1)}
-                      </div>
-                      <div className="text-sm text-cyan-600">
+                      </motion.div>
+                      <div className="text-sm bg-cyan-50 px-3 py-1 rounded-full text-cyan-600 flex items-center">
+                        <Info className="h-4 w-4 mr-1" />
                         Độ tin cậy: {(predictions.confidence * 100).toFixed(0)}%
                       </div>
                     </div>
 
                     <div className="mt-4">
-                      <div className="text-sm font-medium text-cyan-700 mb-2">
+                      <div className="text-sm font-medium text-cyan-700 mb-2 flex items-center">
+                        <Lightbulb className="h-4 w-4 mr-1" />
                         Các yếu tố ảnh hưởng:
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {predictions.factors.map((factor, index) => (
                           <div key={index} className="flex items-center justify-between">
-                            <div className="text-sm text-cyan-600">{factor.factor}</div>
-                            <div className="w-32 h-2 bg-cyan-100 rounded-full overflow-hidden">
+                            <div className="text-sm text-cyan-600 flex items-center">
+                              <div className="w-2 h-2 rounded-full bg-cyan-400 mr-2"></div>
+                              {factor.factor}
+                            </div>
+                            <div className="flex items-center">
+                              <div className="w-32 h-3 bg-cyan-100 rounded-full overflow-hidden mr-2">
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${factor.impact * 100}%` }}
                                 transition={{ duration: 1, delay: index * 0.2 }}
-                                className="h-full bg-cyan-500"
+                                  className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500"
                               />
+                              </div>
+                              <span className="text-xs text-cyan-600 font-medium">{(factor.impact * 100).toFixed(0)}%</span>
                             </div>
                           </div>
                         ))}
@@ -2474,53 +3097,92 @@ const StudentProgress = () => {
                     </div>
                   </div>
 
-                  {/* Biểu đồ xu hướng */}
-                  <div className="p-4 rounded-lg bg-gradient-to-r from-cyan-50 to-transparent">
-                    <div className="font-semibold text-cyan-700 mb-4">Xu hướng điểm số</div>
-                    <div className="h-32 relative">
-                      {progressData.length > 0 && (
-                        <>
-                          <motion.svg
-                            className="w-full h-full"
-                            initial={{ pathLength: 0 }}
-                            animate={{ pathLength: 1 }}
-                            transition={{ duration: 2 }}
-                          >
-                            <defs>
-                              <linearGradient id="trendGradient" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%" stopColor="#06b6d4" />
-                                <stop offset="100%" stopColor="#0891b2" />
-                              </linearGradient>
-                            </defs>
-                            <path
-                              d={generateSafePath(progressData)}
-                              fill="none"
-                              stroke="url(#trendGradient)"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                            />
-                          </motion.svg>
-                          
-                          {/* Điểm dữ liệu */}
-                          {progressData.map((data, index) => (
+                  {/* Additional analysis section */}
+                  <div className="p-4 rounded-lg bg-gradient-to-r from-blue-50 to-transparent border-l-4 border-blue-200 shadow-sm">
+                    <div className="font-semibold text-blue-700 flex items-center mb-3">
+                      <BarChart className="h-5 w-5 mr-2 text-blue-500" />
+                      Phân tích học tập
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between items-center text-xs mb-1">
+                          <span className="text-blue-700 font-medium">Điểm trung bình</span>
+                          <span className="font-medium">{(top5AverageScore/10).toFixed(1)} / 10</span>
+                        </div>
+                        <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${top5AverageScore}%` }}
+                            transition={{ duration: 1 }}
+                            className="h-full bg-gradient-to-r from-blue-400 to-blue-500"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between items-center text-xs mb-1">
+                          <span className="text-green-700 font-medium">Số ngày học liên tiếp</span>
+                          <span className="font-medium">{streakRecord.currentStreak} ngày</span>
+                        </div>
+                        <div className="w-full h-2 bg-green-100 rounded-full overflow-hidden">
                             <motion.div
-                              key={index}
-                              className="absolute w-3 h-3"
-                              style={{
-                                left: `${(index / (progressData.length - 1)) * 100}%`,
-                                top: `${100 - data.score}%`,
-                                transform: 'translate(-50%, -50%)'
-                              }}
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ delay: index * 0.1 }}
-                            >
-                              <div className="w-full h-full bg-white rounded-full border-2 border-cyan-500" />
-                            </motion.div>
-                          ))}
-                        </>
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(100, streakRecord.currentStreak * 10)}%` }}
+                            transition={{ duration: 1 }}
+                            className="h-full bg-gradient-to-r from-green-400 to-green-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Personalized suggestions */}
+                  <div className="p-4 rounded-lg bg-gradient-to-r from-purple-50 to-transparent border-l-4 border-purple-200 shadow-sm mt-auto">
+                    <div className="font-semibold text-purple-700 flex items-center mb-2">
+                      <Lightbulb className="h-5 w-5 mr-2 text-purple-500" />
+                      Gợi ý cá nhân hóa
+                    </div>
+                    
+                    <div className="text-sm text-purple-600 space-y-2">
+                      {predictions.trend === 'up' ? (
+                        <div className="flex items-start">
+                          <div className="mr-2 mt-1">💡</div>
+                          <p>Bạn đang có xu hướng tiến bộ tốt. Tiếp tục duy trì thói quen học tập đều đặn!</p>
+                        </div>
+                      ) : predictions.trend === 'down' ? (
+                        <div className="flex items-start">
+                          <div className="mr-2 mt-1">💡</div>
+                          <p>Gần đây điểm số của bạn đang giảm. Hãy tăng thời gian ôn tập và thử các phương pháp học mới.</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-start">
+                          <div className="mr-2 mt-1">💡</div>
+                          <p>Kết quả của bạn khá ổn định. Hãy thử thách bản thân với các bài tập khó hơn để phát triển.</p>
+                        </div>
+                      )}
+                      
+                      {streakRecord.currentStreak > 0 ? (
+                        <div className="flex items-start">
+                          <div className="mr-2 mt-1">🔥</div>
+                          <p>Chuỗi học tập {streakRecord.currentStreak} ngày liên tiếp! Tiếp tục duy trì để mở khóa thành tích mới.</p>
+                    </div>
+                      ) : (
+                        <div className="flex items-start">
+                          <div className="mr-2 mt-1">⏰</div>
+                          <p>Bạn đã không học tập trong một thời gian. Hãy bắt đầu lại để xây dựng thói quen đều đặn.</p>
+                        </div>
                       )}
                     </div>
+                    
+                    <motion.div
+                      className="mt-3 text-xs text-center text-purple-500 italic"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 1 }}
+                    >
+                      Gợi ý được cá nhân hóa dựa trên dữ liệu học tập của bạn
+                    </motion.div>
                   </div>
                 </div>
               </CardContent>
@@ -2809,6 +3471,10 @@ const StudentProgress = () => {
                               <FileText className="h-12 w-12 text-gray-300 mb-2" />
                               <p className="text-gray-500">Chưa có dữ liệu về từ hay sai</p>
                               <p className="text-sm text-gray-400">Hoàn thành các bài kiểm tra để xem từ nào thường xuyên sai</p>
+                              <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg p-3 max-w-xs">
+                                <p className="text-sm text-blue-700 font-medium">Cần làm thêm bài tập</p>
+                                <p className="text-xs text-blue-600 mt-1">Hệ thống cần phân tích nhiều bài làm để tìm ra lỗi thường gặp. Hãy hoàn thành ít nhất 5 bài tập để có kết quả chính xác.</p>
+                              </div>
                             </div>
                           )}
                         </TabsContent>
