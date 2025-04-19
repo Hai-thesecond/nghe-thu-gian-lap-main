@@ -28,19 +28,21 @@ BEGIN
         WHERE student_id = COALESCE(NEW.student_id, OLD.student_id) 
         LIMIT 1
       )
+  ),
+  -- Add deduplication step to ensure no duplicates in a single operation
+  deduplicated_scores AS (
+    SELECT DISTINCT ON (student_id, question_id, class_id)
+      student_id,
+      question_id,
+      class_id,
+      score,
+      adjusted_score,
+      calculated_rank
+    FROM ranked_scores
+    ORDER BY student_id, question_id, class_id, calculated_rank
   )
   
-  -- Delete existing rankings
-  DELETE FROM class_rankings 
-  WHERE 
-    question_id = COALESCE(NEW.question_id, OLD.question_id)
-    AND class_id = (
-      SELECT class_id FROM student_classes 
-      WHERE student_id = COALESCE(NEW.student_id, OLD.student_id) 
-      LIMIT 1
-    );
-  
-  -- Insert new rankings
+  -- Use upsert pattern with deduplicated data
   INSERT INTO class_rankings (
     student_id, 
     question_id, 
@@ -60,7 +62,12 @@ BEGIN
     calculated_rank,
     NOW(),
     NOW()
-  FROM ranked_scores;
+  FROM deduplicated_scores
+  ON CONFLICT (student_id, question_id, class_id) DO UPDATE SET
+    score = EXCLUDED.score,
+    adjusted_score = EXCLUDED.adjusted_score,
+    rank = EXCLUDED.rank,
+    updated_at = NOW();
 
   RETURN NEW;
 END;
@@ -119,8 +126,21 @@ BEGIN
       ) AS calculated_rank
     FROM
       best_student_answers bsa
+  ),
+  -- Add deduplication step to ensure no duplicates in a single operation
+  deduplicated_scores AS (
+    SELECT DISTINCT ON (student_id, question_id, class_id)
+      student_id,
+      question_id,
+      class_id,
+      score,
+      adjusted_score,
+      calculated_rank
+    FROM ranked_scores
+    ORDER BY student_id, question_id, class_id, calculated_rank
   )
   
+  -- Also use upsert pattern for manual refresh with deduplicated data
   INSERT INTO class_rankings (
     student_id, 
     question_id, 
@@ -140,7 +160,12 @@ BEGIN
     calculated_rank,
     NOW(),
     NOW()
-  FROM ranked_scores;
+  FROM deduplicated_scores
+  ON CONFLICT (student_id, question_id, class_id) DO UPDATE SET
+    score = EXCLUDED.score,
+    adjusted_score = EXCLUDED.adjusted_score,
+    rank = EXCLUDED.rank,
+    updated_at = NOW();
 END;
 $$ LANGUAGE plpgsql;
 
