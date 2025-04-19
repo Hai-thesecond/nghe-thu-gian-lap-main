@@ -4,6 +4,7 @@ import StudentSidebar from '@/components/student/StudentSidebar';
 import Header from '@/components/Header';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface StudentLayoutProps {
   children: React.ReactNode;
@@ -11,9 +12,15 @@ interface StudentLayoutProps {
 }
 
 const StudentLayout: React.FC<StudentLayoutProps> = ({ children, hideSidebar = false }) => {
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const isMobile = useIsMobile();
+  const [isSidebarOpen, setSidebarOpen] = useState(!isMobile);
   const { refreshSession, user } = useAuth();
   const lastVisibleTime = useRef<number>(Date.now());
+
+  // Update sidebar state when mobile status changes
+  useEffect(() => {
+    setSidebarOpen(!isMobile);
+  }, [isMobile]);
 
   const handleSidebarStateChange = (isOpen: boolean) => {
     setSidebarOpen(isOpen);
@@ -78,21 +85,25 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children, hideSidebar = f
         <Toaster richColors position="top-right" />
         
         {!hideSidebar && (
-          <div className="fixed left-0 top-0 z-30 h-full">
+          <div className={`fixed left-0 top-0 z-30 h-full ${isMobile ? 'transform transition-transform duration-300 ease-in-out ' + (isSidebarOpen ? 'translate-x-0' : '-translate-x-full') : ''}`}>
             <StudentSidebar onStateChange={handleSidebarStateChange} />
           </div>
         )}
         
         <div 
           className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
-            !hideSidebar ? (isSidebarOpen ? 'ml-[300px]' : 'ml-[80px]') : 'ml-0'
+            !hideSidebar ? (
+              isSidebarOpen ? 
+                'md:ml-[300px] ml-0' : /* Mobile gets 0 margin, desktop gets 300px */
+                'md:ml-[80px] ml-0'    /* Mobile gets 0 margin, desktop gets 80px */
+            ) : 'ml-0'
           }`}
         >
           <div className="sticky top-0 z-40">
             <Header />
           </div>
           
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6">
             {children}
           </main>
         </div>

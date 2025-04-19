@@ -1,8 +1,33 @@
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 0.5rem; /* Reduced default padding for mobile */
   text-align: center;
+}
+
+/* Add responsive adjustments */
+@media (min-width: 640px) {
+  #root {
+    padding: 1rem;
+  }
+}
+
+@media (min-width: 768px) {
+  #root {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  #root {
+    padding: 2rem; /* Original padding restored for desktop */
+  }
+}
+
+/* Make all images responsive by default */
+img {
+  max-width: 100%;
+  height: auto;
 }
 
 .logo {

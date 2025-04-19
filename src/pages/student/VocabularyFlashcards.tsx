@@ -93,6 +93,26 @@ const fullscreenStyles = `
     z-index: 100;
   }
 
+  /* Enhanced mobile styles for smaller devices */
+  @media (max-width: 480px) {
+    .fullscreen-container .content-wrapper {
+      padding: 0.25rem;
+    }
+    
+    .fullscreen-container .content-wrapper .container {
+      padding: 0 0.25rem;
+    }
+
+    .progress-bar-wrapper {
+      font-size: 0.9rem;
+    }
+    
+    .vocabulary-main {
+      font-size: 2rem !important; /* Smaller font on mobile */
+    }
+  }
+
+  /* Existing media queries */
   @media (min-width: 640px) {
     .fullscreen-container .content-wrapper {
       padding: 1rem;
@@ -289,7 +309,42 @@ const flippableCardStyles = `
     margin-bottom: 0.25rem;
   }
   
-  /* Responsive adjustments */
+  /* Enhanced mobile responsive adjustments */
+  @media (max-width: 480px) {
+    .flip-card-container {
+      min-height: 350px;
+    }
+    
+    .flip-card-front, .flip-card-back {
+      min-height: 350px;
+      padding: 1rem;
+    }
+    
+    .vocabulary-main {
+      font-size: 2rem;
+    }
+    
+    .meaning-vi {
+      font-size: 1.2rem;
+      padding: 0.75rem;
+    }
+    
+    .additional-info-section {
+      padding: 0.5rem;
+    }
+    
+    .image-container {
+      max-width: 200px;
+      height: 160px;
+    }
+    
+    .image-container.back {
+      max-width: 180px;
+      height: 120px;
+    }
+  }
+  
+  /* Existing responsive adjustments */
   @media (max-width: 768px) {
     .flip-card-front {
       flex-direction: column;
