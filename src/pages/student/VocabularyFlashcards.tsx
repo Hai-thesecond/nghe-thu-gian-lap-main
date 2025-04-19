@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Book, CheckCircle2, Check, ArrowRight, Loader2, Sparkles, Image as ImageIcon, Rotate3D, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Book, CheckCircle2, Check, ArrowRight, Loader2, Sparkles, Image as ImageIcon, Rotate3D, RotateCcw, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import StudentLayout from '@/layouts/StudentLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -339,6 +339,9 @@ const VocabularyFlashcards = () => {
   const [allCompleted, setAllCompleted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playCount, setPlayCount] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [loadingStates, setLoadingStates] = useState({
     vocabularyData: true,
     progressData: true
@@ -785,6 +788,82 @@ const VocabularyFlashcards = () => {
     setIsFlipped(!isFlipped);
   };
 
+  // Reset playCount when vocabulary changes
+  useEffect(() => {
+    setPlayCount(0);
+    
+    // Automatically play audio when changing card
+    setTimeout(() => {
+      playAudio();
+    }, 500);
+  }, [currentIndex]);
+  
+  // Phát âm thanh từ vựng
+  const playAudio = () => {
+    if (!currentVocabulary) return;
+    
+    if (isPlaying) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setIsPlaying(false);
+      return;
+    }
+    
+    // Không có audio file, sử dụng Web Speech API
+    useSpeechSynthesis();
+  };
+  
+  // Hàm sử dụng Web Speech API
+  const useSpeechSynthesis = () => {
+    if (!currentVocabulary) return;
+    
+    if ('speechSynthesis' in window) {
+      try {
+        setIsPlaying(true);
+        
+        // Tạo utterance mới
+        const utterance = new SpeechSynthesisUtterance(currentVocabulary.word);
+        
+        // Tìm giọng tiếng Anh UK
+        const voices = speechSynthesis.getVoices();
+        const ukVoice = voices.find(voice => 
+          voice.name.includes('UK English Female') || 
+          voice.name.includes('British') || 
+          (voice.lang === 'en-GB' && voice.name.includes('Female'))
+        );
+        
+        // Nếu tìm thấy giọng UK, sử dụng giọng đó
+        if (ukVoice) {
+          utterance.voice = ukVoice;
+        } else {
+          // Fallback sang giọng tiếng Anh khác
+          utterance.lang = 'en-US';
+        }
+        
+        // Tùy chỉnh rate và pitch
+        utterance.rate = 0.85; // Tốc độ nói (0.1 đến 10)
+        utterance.pitch = 1; // Cao độ (0 đến 2)
+        
+        // Các sự kiện xử lý
+        utterance.onend = () => {
+          setIsPlaying(false);
+          setPlayCount(prev => prev + 1);
+        };
+        
+        utterance.onerror = () => {
+          setIsPlaying(false);
+        };
+        
+        // Phát âm
+        speechSynthesis.speak(utterance);
+      } catch (error) {
+        console.error('Lỗi khi phát âm:', error);
+        setIsPlaying(false);
+      }
+    }
+  };
+
   // Thay đổi renderCardContent để sử dụng bố cục card lật
   const renderCardContent = () => {
     if (!currentVocabulary) return <div className="flex justify-center items-center h-full">Loading...</div>;
@@ -864,7 +943,29 @@ const VocabularyFlashcards = () => {
                 </div>
               </div>
               
-              <div className="flip-hint text-blue-500 text-sm animate-pulse flex items-center">
+              {/* Nút phát âm thanh */}
+              <div className="mt-4 flex space-x-2 justify-start">
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full opacity-70 blur-sm group-hover:opacity-100 transition duration-300"></div>
+                  <Button
+                    size="icon"
+                    className="relative rounded-full w-14 h-14 bg-white hover:bg-blue-50 border-none shadow-md transform hover:scale-110 transition-all duration-300"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playAudio();
+                    }}
+                  >
+                    <Volume2 className={`h-7 w-7 text-primary ${isPlaying ? 'animate-pulse' : ''}`} />
+                  </Button>
+                </div>
+                <div className="flex flex-col justify-center">
+                  <p className="text-gray-600 text-sm">
+                    {playCount > 0 ? `Đã nghe ${playCount} lần` : "Nhấn để nghe từ"}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flip-hint text-blue-500 text-sm animate-pulse flex items-center mt-4">
                 <RotateCcw className="h-4 w-4 mr-1" />
                 Nhấn để xem nghĩa và thông tin thêm
               </div>
@@ -1149,6 +1250,12 @@ const VocabularyFlashcards = () => {
     <StudentLayout hideSidebar={true}>
       {/* Add style tag for fullscreen and flippable card styles */}
       <style dangerouslySetInnerHTML={{ __html: fullscreenStyles + flippableCardStyles }} />
+      
+      <audio 
+        ref={audioRef}
+        preload="auto"
+        style={{ display: 'none' }}
+      />
       
       <div ref={containerRef} className="fullscreen-container">
         <div className="progress-bar-wrapper relative bg-gradient-to-r from-blue-50/90 to-indigo-50/90 py-4 border-b border-blue-100 backdrop-blur-md">

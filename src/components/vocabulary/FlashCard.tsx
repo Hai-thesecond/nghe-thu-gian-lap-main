@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Volume, Repeat, ArrowRight, Maximize } from 'lucide-react';
+import { Volume, Volume2, Repeat, ArrowRight, Maximize } from 'lucide-react';
 
 export interface VocabularyItem {
   id: string;
@@ -58,20 +58,108 @@ const FlashCard: React.FC<FlashCardProps> = ({
   useEffect(() => {
     setIsFlipped(false);
     setPlayCount(0);
+    
+    // Tự động phát âm khi component mount
+    setTimeout(() => {
+      playAudio();
+    }, 500);
   }, [vocabulary]);
 
+  // Phát âm thanh từ vựng
   const playAudio = () => {
-    if (audioRef.current && playCount < 2) {
-      const audio = audioRef.current;
-      
-      // Thiết lập thời gian bắt đầu và kết thúc nếu có
-      if (vocabulary.audio_start_time !== undefined && vocabulary.audio_end_time !== undefined) {
-        audio.currentTime = vocabulary.audio_start_time;
+    if (isPlaying) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
       }
-      
-      audio.play();
-      setIsPlaying(true);
-      setPlayCount(prev => prev + 1);
+      setIsPlaying(false);
+      return;
+    }
+    
+    if (playCount >= 2) return;
+    
+    // Thử sử dụng file audio nếu có
+    if (audioRef.current && audioUrl) {
+      try {
+        const audio = audioRef.current;
+        
+        // Thiết lập thời gian bắt đầu và kết thúc nếu có
+        if (vocabulary.audio_start_time !== undefined && vocabulary.audio_end_time !== undefined) {
+          audio.currentTime = vocabulary.audio_start_time;
+        }
+        
+        // Phát audio
+        const playPromise = audio.play();
+        
+        if (playPromise !== undefined) {
+          setIsPlaying(true);
+          
+          playPromise
+            .then(() => {
+              // Audio phát thành công
+              setPlayCount(prev => prev + 1);
+            })
+            .catch(error => {
+              console.error("Không thể phát audio file:", error);
+              // Fallback sang Web Speech API
+              useSpeechSynthesis();
+            });
+        }
+      } catch (error) {
+        console.error("Lỗi khi phát audio:", error);
+        // Fallback sang Web Speech API
+        useSpeechSynthesis();
+      }
+    } else {
+      // Không có audio file, sử dụng Web Speech API
+      useSpeechSynthesis();
+    }
+  };
+  
+  // Hàm sử dụng Web Speech API
+  const useSpeechSynthesis = () => {
+    if ('speechSynthesis' in window) {
+      try {
+        setIsPlaying(true);
+        
+        // Tạo utterance mới
+        const utterance = new SpeechSynthesisUtterance(vocabulary.word);
+        
+        // Tìm giọng tiếng Anh UK
+        const voices = speechSynthesis.getVoices();
+        const ukVoice = voices.find(voice => 
+          voice.name.includes('UK English Female') || 
+          voice.name.includes('British') || 
+          (voice.lang === 'en-GB' && voice.name.includes('Female'))
+        );
+        
+        // Nếu tìm thấy giọng UK, sử dụng giọng đó
+        if (ukVoice) {
+          utterance.voice = ukVoice;
+        } else {
+          // Fallback sang giọng tiếng Anh khác
+          utterance.lang = 'en-US';
+        }
+        
+        // Tùy chỉnh rate và pitch
+        utterance.rate = 0.85; // Tốc độ nói (0.1 đến 10)
+        utterance.pitch = 1; // Cao độ (0 đến 2)
+        
+        // Các sự kiện xử lý
+        utterance.onend = () => {
+          setIsPlaying(false);
+          setPlayCount(prev => prev + 1);
+        };
+        
+        utterance.onerror = () => {
+          setIsPlaying(false);
+        };
+        
+        // Phát âm
+        speechSynthesis.speak(utterance);
+      } catch (error) {
+        console.error('Lỗi khi phát âm:', error);
+        setIsPlaying(false);
+      }
     }
   };
 
@@ -120,21 +208,27 @@ const FlashCard: React.FC<FlashCardProps> = ({
               </div>
             )}
             
-            <div className="mt-4 flex space-x-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  playAudio();
-                }}
-                disabled={isPlaying || playCount >= 2}
-                className="flex items-center space-x-1"
-              >
-                <Volume className="h-4 w-4 mr-1" />
-                <span>Nghe ({playCount}/2)</span>
-              </Button>
+            <div className="mt-4 flex space-x-2 justify-center">
+              {/* Nút phát âm thanh được cải thiện */}
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full opacity-70 blur-sm group-hover:opacity-100 transition duration-300"></div>
+                <Button
+                  size="icon"
+                  className="relative rounded-full w-14 h-14 bg-white hover:bg-blue-50 border-none shadow-md transform hover:scale-110 transition-all duration-300"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    playAudio();
+                  }}
+                  disabled={playCount >= 2}
+                >
+                  <Volume2 className={`h-7 w-7 text-primary ${isPlaying ? 'animate-pulse' : ''}`} />
+                </Button>
+              </div>
             </div>
+            
+            <p className="text-gray-600 text-sm mt-3">
+              {playCount > 0 ? "Nhấn vào biểu tượng để nghe lại" : "Nhấn vào biểu tượng để nghe từ"} ({playCount}/2)
+            </p>
           </div>
         </div>
         
