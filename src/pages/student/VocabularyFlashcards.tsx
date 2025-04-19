@@ -354,8 +354,7 @@ const flippableCardStyles = `
     
     .text-container {
       max-width: 100%;
-      align-items: center;
-      text-align: center;
+      margin-bottom: 1rem;
     }
     
     .vocabulary-main {
@@ -371,6 +370,17 @@ const flippableCardStyles = `
     
     .additional-info-section {
       padding: 0.75rem;
+    }
+    
+    .flip-card-front {
+      flex-direction: column !important;
+    }
+    
+    .audio-button-container {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: center;
+      width: 100%;
     }
   }
 `;
@@ -999,18 +1009,18 @@ const VocabularyFlashcards = () => {
               </div>
               
               {/* Nút phát âm thanh */}
-              <div className="mt-4 flex space-x-2 justify-start">
+              <div className="mt-4 flex space-x-2 justify-start audio-button-container">
                 <div className="relative group">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full opacity-70 blur-sm group-hover:opacity-100 transition duration-300"></div>
                   <Button
                     size="icon"
-                    className="relative rounded-full w-14 h-14 bg-white hover:bg-blue-50 border-none shadow-md transform hover:scale-110 transition-all duration-300"
+                    className="relative rounded-full w-16 h-16 bg-white hover:bg-blue-50 border-none shadow-md transform hover:scale-110 transition-all duration-300"
                     onClick={(e) => {
                       e.stopPropagation();
                       playAudio();
                     }}
                   >
-                    <Volume2 className={`h-7 w-7 text-primary ${isPlaying ? 'animate-pulse' : ''}`} />
+                    <Volume2 className={`h-8 w-8 text-primary ${isPlaying ? 'animate-pulse' : ''}`} />
                   </Button>
                 </div>
                 <div className="flex flex-col justify-center">
@@ -1065,11 +1075,28 @@ const VocabularyFlashcards = () => {
                   <ImageIcon className="w-8 h-8 text-gray-300" />
                 </div>
               )}
-          </div>
+            </div>
           
             {/* Nghĩa tiếng Việt */}
             <div className="meaning-vi w-full text-center mb-2">
               {currentVocabulary.meaning_vi || "Chưa có nghĩa tiếng Việt"}
+            </div>
+            
+            {/* Audio button for back of card */}
+            <div className="flex justify-center mb-4 audio-button-container">
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full opacity-70 blur-sm group-hover:opacity-100 transition duration-300"></div>
+                <Button
+                  size="icon"
+                  className="relative rounded-full w-14 h-14 bg-white hover:bg-blue-50 border-none shadow-md transform hover:scale-110 transition-all duration-300"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    playAudio();
+                  }}
+                >
+                  <Volume2 className={`h-7 w-7 text-primary ${isPlaying ? 'animate-pulse' : ''}`} />
+                </Button>
+              </div>
             </div>
             
             {/* Thông tin bổ sung */}
