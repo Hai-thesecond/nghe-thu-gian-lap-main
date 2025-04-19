@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Check the Backend on Supabase Before Proceeding
+Before starting any new tasks or modifications, verify the backend status on Supabase to ensure everything is operating correctly. This proactive check helps prevent issues down the line.

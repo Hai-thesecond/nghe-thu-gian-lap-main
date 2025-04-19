@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Preserve Essential Context
+Avoid removing or altering important context in your interactions. Consistent context helps Cursor AI maintain accuracy, especially when dealing with predictions or multi-step tasks.

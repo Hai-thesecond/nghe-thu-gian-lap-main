@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XF Dictionary API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, button {
+      padding: 8px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.8;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      overflow: auto;
+      max-height: 400px;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .definition-block {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .part-of-speech {
+      color: #666;
+      font-style: italic;
+    }
+    .examples {
+      margin-left: 20px;
+      color: #444;
+    }
+    .pronunciation {
+      color: #0066cc;
+      margin-bottom: 10px;
+    }
+    .frequency {
+      color: #666;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <h1>XF Dictionary API Test</h1>
+  
+  <div class="form-group">
+    <label for="word">Word to lookup:</label>
+    <input type="text" id="word" value="through" placeholder="Enter a word">
+    <button onclick="testXFAPI()">Search</button>
+  </div>
+  
+  <h2>Results:</h2>
+  <div id="loading" style="display: none;">Searching...</div>
+  <div id="formatted"></div>
+  <pre id="results"></pre>
+  
+  <script>
+    function testXFAPI() {
+      const word = document.getElementById('word').value.trim();
+      const resultsElement = document.getElementById('results');
+      const formattedElement = document.getElementById('formatted');
+      const loadingElement = document.getElementById('loading');
+      
+      if (!word) {
+        resultsElement.innerHTML = '<span class="error">Please enter a word</span>';
+        return;
+      }
+      
+      resultsElement.innerHTML = '';
+      formattedElement.innerHTML = '';
+      loadingElement.style.display = 'block';
+      
+      // Prepare data for the API
+      const data = JSON.stringify({
+        selection: word,
+        textAfterSelection: '',
+        textBeforeSelection: ''
+      });
+      
+      // Create XHR request
+      const xhr = new XMLHttpRequest();
+      
+      xhr.addEventListener('readystatechange', function () {
+        if (this.readyState === this.DONE) {
+          loadingElement.style.display = 'none';
+          
+          try {
+            const data = JSON.parse(this.responseText);
+            
+            // Display raw JSON
+            resultsElement.innerHTML = JSON.stringify(data, null, 2);
+            
+            // Format and display results
+            let html = '';
+            
+            // Add pronunciations if available
+            if (data.pronunciations && data.pronunciations.length > 0) {
+              const firstPron = data.pronunciations[0];
+              if (firstPron.entries && firstPron.entries.length > 0) {
+                html += '<div class="pronunciation">';
+                firstPron.entries[0].textual.forEach(t => {
+                  html += `<div>${t.pronunciation}</div>`;
+                });
+                html += '</div>';
+              }
+            }
+            
+            // Add frequency information if available
+            if (data.wordFrequencies && data.wordFrequencies.length > 0) {
+              const freq = data.wordFrequencies[0].frequencies[0];
+              if (freq) {
+                html += `<div class="frequency">Frequency band: ${freq.frequencyBand}</div>`;
+              }
+            }
+            
+            // Add definitions and examples
+            if (data.items && data.items.length > 0) {
+              data.items.forEach(item => {
+                html += '<div class="definition-block">';
+                html += `<h3 class="part-of-speech">${item.partOfSpeech}</h3>`;
+                
+                item.definitions.forEach((def, index) => {
+                  html += '<div>';
+                  html += `<strong>${index + 1}.</strong> ${def.definition}`;
+                  
+                  if (def.examples && def.examples.length > 0) {
+                    html += '<div class="examples">';
+                    def.examples.forEach(example => {
+                      html += `<div>• ${example}</div>`;
+                    });
+                    html += '</div>';
+                  }
+                  
+                  html += '</div><br>';
+                });
+                
+                html += '</div>';
+              });
+            } else {
+              html += '<p class="error">No definitions found</p>';
+            }
+            
+            formattedElement.innerHTML = html;
+          } catch (error) {
+            resultsElement.innerHTML = `<span class="error">Error parsing response: ${error.message}</span>`;
+            formattedElement.innerHTML = `<pre>${this.responseText}</pre>`;
+          }
+        }
+      });
+      
+      // Set up request
+      xhr.open('POST', 'https://xf-english-dictionary1.p.rapidapi.com/v1/dictionary');
+      xhr.setRequestHeader('x-rapidapi-key', '3069f1f8e9mshbe08e6281e89ce8p1278f3jsncf63290a068a');
+      xhr.setRequestHeader('x-rapidapi-host', 'xf-english-dictionary1.p.rapidapi.com');
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      
+      // Send request
+      xhr.send(data);
+    }
+    
+    // Auto-run on page load
+    window.onload = function() {
+      testXFAPI();
+    };
+  </script>
+</body>
+</html> 

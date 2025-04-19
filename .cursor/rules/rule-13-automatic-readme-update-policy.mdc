@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Automatic Readme.md Update Policy
+The readme.md file should be automatically updated after every 20 messages or interactions. This keeps the project documentation current and aligned with the ongoing work, facilitating better tracking of changes and progress.
