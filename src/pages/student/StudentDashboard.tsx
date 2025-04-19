@@ -1935,30 +1935,491 @@ const StudentDashboard = () => {
               </div>
                   
                   <div className="overflow-x-auto rounded-lg border shadow-sm">
-                    <Table>
-                      <TableHeader className="bg-gradient-to-r from-gray-50 to-blue-50">
-                        <TableRow>
-                          <TableHead>Tiêu đề</TableHead>
-                          <TableHead>Giáo viên</TableHead>
-                          <TableHead>Lớp học</TableHead>
-                          <TableHead>Deadline</TableHead>
-                          <TableHead>Số lần làm</TableHead>
-                          <TableHead>Điểm</TableHead>
-                          <TableHead>Xếp hạng</TableHead>
-                          <TableHead>Trạng thái</TableHead>
-                          <TableHead className="text-right">Thao tác</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                    {questions.filter(q => completedQuestionIds.has(q.id)).length > 0 ? (
-                      questions
-                        .filter(q => completedQuestionIds.has(q.id))
-                            .map((question, index) => {
+                    {/* Desktop Table - Hidden on small screens */}
+                    <div className="hidden sm:block">
+                      <Table>
+                        <TableHeader className="bg-gradient-to-r from-gray-50 to-blue-50">
+                          <TableRow>
+                            <TableHead>Tiêu đề</TableHead>
+                            <TableHead className="hidden md:table-cell">Giáo viên</TableHead>
+                            <TableHead className="hidden lg:table-cell">Lớp học</TableHead>
+                            <TableHead className="hidden md:table-cell">Deadline</TableHead>
+                            <TableHead className="hidden lg:table-cell">Số lần làm</TableHead>
+                            <TableHead>Điểm</TableHead>
+                            <TableHead className="hidden md:table-cell">Xếp hạng</TableHead>
+                            <TableHead>Trạng thái</TableHead>
+                            <TableHead className="text-right">Thao tác</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {questions.filter(q => completedQuestionIds.has(q.id)).length > 0 ? (
+                            questions
+                              .filter(q => completedQuestionIds.has(q.id))
+                              .map((question, index) => {
+                                const deadline = questionDeadlines[question.id];
+                                const answerDetails = studentAnswersMap[question.id];
+                                const isCompleted = answerDetails?.is_completed || false;
+                                const score = answerDetails?.score;
+                                const ranking = studentRankings[question.id];
+                                const hasStarted = answerDetails?.started_at != null;
+                                // Sử dụng attempt_count từ attemptCounts
+                                const attemptCount = attemptCounts[question.id] || answerDetails?.attempt_count || 0;
+                                
+                                let status;
+                                if (isCompleted) {
+                                  // Check if the score meets the passing threshold (70%)
+                                  const isPassed = score !== null && score !== undefined && score >= 70;
+                                  if (isPassed) {
+                                  status = {
+                                    label: 'Đã hoàn thành',
+                                    color: 'bg-green-100 text-green-800',
+                                    icon: <CheckCircle className="h-4 w-4 mr-1" />,
+                                    code: ASSIGNMENT_STATUS.COMPLETED
+                                  };
+                                  } else {
+                                    status = {
+                                      label: 'Chưa đạt',
+                                      color: 'bg-red-100 text-red-800',
+                                      icon: <AlertTriangle className="h-4 w-4 mr-1" />,
+                                      code: ASSIGNMENT_STATUS.NOT_PASSED
+                                    };
+                                  }
+                                } else if (answerDetails?.started_at) {
+                                  status = {
+                                    label: 'Đã làm',
+                                    color: 'bg-yellow-100 text-yellow-800',
+                                    icon: <Clock className="h-4 w-4 mr-1" />,
+                                    code: ASSIGNMENT_STATUS.IN_PROGRESS
+                                  };
+                                } else {
+                                  status = {
+                                    label: 'Chưa làm',
+                                    color: 'bg-blue-100 text-blue-800',
+                                    icon: <BookOpen className="h-4 w-4 mr-1" />,
+                                    code: ASSIGNMENT_STATUS.NOT_STARTED
+                                  };
+                                }
+                                
+                                const isExpired = question.deadline && new Date(question.deadline) < new Date();
+                                
+                                return (
+                                  <TableRow key={question.id} className="table-row-animated" style={{ animationDelay: `${index * 0.05}s` }}>
+                                    <TableCell className="font-medium">{question.title}</TableCell>
+                                    <TableCell>{question.profiles?.full_name || ''}</TableCell>
+                                    <TableCell>
+                                      {classNames[question.id] ? (
+                                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700">
+                                          {classNames[question.id]}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-gray-500">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex flex-col">
+                                        <span className={getDeadlineColorClass(deadline)}>
+                                          {formatDate(deadline)}
+                                        </span>
+                                        {isPastDeadline(deadline) && !isCompleted && (
+                                          <span className="text-red-500 text-xs mt-1 flex items-center">
+                                            <AlertTriangle className="h-3 w-3 mr-1" />
+                                            Đã quá hạn
+                                          </span>
+                                        )}
+                                        {isDeadlineApproaching(deadline) && !isCompleted && (
+                                          <span className="text-orange-500 text-xs mt-1 flex items-center">
+                                            <Clock className="h-3 w-3 mr-1" />
+                                            Sắp hết hạn
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant="outline" className="bg-blue-50">
+                                        {attemptCount}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      {isCompleted ? (
+                                        <div className="flex flex-col">
+                                          {(() => {
+                                            // Lấy điểm đã điều chỉnh từ bảng rankings nếu có
+                                            const rankingData = studentRankings[question.id];
+                                            let displayScore = 0;
+                                            
+                                            if (rankingData && rankingData.adjusted_score !== undefined) {
+                                              // Sử dụng adjusted_score từ class_rankings
+                                              displayScore = rankingData.adjusted_score;
+                                            } else if (answerDetails?.score !== undefined && answerDetails.score !== null) {
+                                              // Fallback nếu không có trong rankings
+                                              displayScore = answerDetails.score === 100 ? 10 : Math.round(answerDetails.score / 10) / 10;
+                                            }
+                                            
+                                            // Xác định loại badge dựa trên điểm số
+                                            let badgeClass = 'score-badge ';
+                                            let iconElement = null;
+                                            
+                                            if (displayScore >= 9) {
+                                              badgeClass += 'perfect';
+                                              iconElement = <Trophy className="h-5 w-5 mr-2 text-yellow-600 animate-shake" />;
+                                            } else if (displayScore >= 8) {
+                                              badgeClass += 'excellent';
+                                              iconElement = <Award className="h-5 w-5 mr-2 text-blue-600 animate-pulse-custom" />;
+                                            } else if (displayScore >= 7) {
+                                              badgeClass += 'good';
+                                              iconElement = <Star className="h-5 w-5 mr-2 text-green-500" />;
+                                            } else if (displayScore >= 5) {
+                                              badgeClass += 'average';
+                                              iconElement = <Star className="h-5 w-5 mr-2 text-yellow-500" />;
+                                                  } else {
+                                              badgeClass += 'poor';
+                                              iconElement = <AlertTriangle className="h-5 w-5 mr-2 text-red-200" />;
+                                            }
+                                            
+                                            return (
+                                              <div className={badgeClass}>
+                                                {iconElement}
+                                                <div className="relative">
+                                                  <span className="font-bold text-lg relative z-10">{displayScore.toFixed(1)}</span>
+                                                  {displayScore >= 9 && (
+                                                    <div className="absolute -top-1 -right-1 -bottom-1 -left-1 bg-yellow-200 rounded-full opacity-20 animate-pulse-custom"></div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-500">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      {studentRankings[question.id] ? (
+                                        <div className="flex flex-col gap-1">
+                                          {(() => {
+                                            const rank = studentRankings[question.id].rank;
+                                            const total = studentRankings[question.id].total;
+                                            
+                                            // Xác định loại badge dựa trên thứ hạng
+                                            let badgeClass = 'rank-badge ';
+                                            let iconElement = null;
+                                            let effectElement = null;
+                                            
+                                            if (rank === 1) {
+                                              badgeClass += 'top1';
+                                              iconElement = <Crown className="h-5 w-5 mr-2 text-yellow-600 animate-shake" />;
+                                              effectElement = (
+                                                <div className="absolute top-0 right-0 left-0 bottom-0">
+                                                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-ping"></div>
+                                                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-yellow-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                                                </div>
+                                              );
+                                            } else if (rank <= 3) {
+                                              badgeClass += 'top3';
+                                              iconElement = <Trophy className="h-5 w-5 mr-2 text-gray-600 animate-pulse-custom" />;
+                                              effectElement = (
+                                                <div className="absolute top-0 right-0 left-0 bottom-0">
+                                                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-gray-400 rounded-full animate-ping" style={{ animationDelay: '0.2s' }}></div>
+                                                </div>
+                                              );
+                                            } else if (rank <= 10) {
+                                              badgeClass += 'top10';
+                                              iconElement = <Award className="h-5 w-5 mr-2 text-orange-600" />;
+                                              effectElement = (
+                                                <div className="absolute top-0 right-0 left-0 bottom-0">
+                                                  <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-orange-400 rounded-full animate-ping" style={{ animationDelay: '0.3s' }}></div>
+                                                </div>
+                                              );
+                                            } else if (rank <= 20) {
+                                              badgeClass += 'top20';
+                                              iconElement = <Award className="h-5 w-5 mr-2 text-purple-600" />;
+                                              effectElement = (
+                                                <div className="absolute top-0 right-0 left-0 bottom-0">
+                                                  <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-purple-400 rounded-full animate-ping" style={{ animationDelay: '0.4s' }}></div>
+                                                </div>
+                                              );
+                                            } else if (rank <= 30) {
+                                              badgeClass += 'top30';
+                                              iconElement = <Star className="h-5 w-5 mr-2 text-teal-600" />;
+                                              effectElement = (
+                                                <div className="absolute top-0 right-0 left-0 bottom-0">
+                                                  <div className="absolute -top-1 -left-1 w-2 h-2 bg-teal-400 rounded-full animate-ping" style={{ animationDelay: '0.3s' }}></div>
+                                                </div>
+                                              );
+                                            } else if (rank <= 50) {
+                                              badgeClass += 'top50';
+                                              iconElement = <Star className="h-5 w-5 mr-2 text-red-600" />;
+                                              effectElement = (
+                                                <div className="absolute top-0 right-0 left-0 bottom-0">
+                                                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                                                </div>
+                                              );
+                                            }
+                                            
+                                            return (
+                                              <div className="relative">
+                                                <div className={badgeClass}>
+                                                  {iconElement}
+                                                  <span className="font-bold">#{rank}/{total}</span>
+                                                  {effectElement}
+                                                </div>
+                                                
+                                                {rank === 1 && (
+                                                  <div className="mt-1 py-1 px-2 rounded-full bg-yellow-100 border border-yellow-300 flex items-center justify-center animate-float">
+                                                    <Crown className="h-3 w-3 text-yellow-500 mr-1 animate-sparkle" />
+                                                    <span className="text-xs font-semibold text-yellow-700 rainbow-text">Đứng đầu</span>
+                                                  </div>
+                                                )}
+                                                {rank > 1 && rank <= 3 && (
+                                                  <div className="mt-1 py-1 px-2 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center animate-float">
+                                                    <Trophy className="h-3 w-3 text-gray-500 mr-1" />
+                                                    <span className="text-xs font-semibold text-gray-700">Top 3</span>
+                                                  </div>
+                                                )}
+                                                {rank > 3 && rank <= 10 && (
+                                                  <div className="mt-1 py-1 px-2 rounded-full bg-orange-100 border border-orange-300 flex items-center justify-center">
+                                                    <Award className="h-3 w-3 text-orange-500 mr-1" />
+                                                    <span className="text-xs font-semibold text-orange-700">Top 10</span>
+                                                  </div>
+                                                )}
+                                                {rank > 10 && rank <= 20 && (
+                                                  <div className="mt-1 py-1 px-2 rounded-full bg-purple-100 border border-purple-300 flex items-center justify-center">
+                                                    <Award className="h-3 w-3 text-purple-500 mr-1" />
+                                                    <span className="text-xs font-semibold text-purple-700">Top 20</span>
+                                                  </div>
+                                                )}
+                                                {rank > 20 && rank <= 30 && (
+                                                  <div className="mt-1 py-1 px-2 rounded-full bg-teal-100 border border-teal-300 flex items-center justify-center">
+                                                    <Star className="h-3 w-3 text-teal-500 mr-1" />
+                                                    <span className="text-xs font-semibold text-teal-700">Top 30</span>
+                                                  </div>
+                                                )}
+                                                {rank > 30 && rank <= 50 && (
+                                                  <div className="mt-1 py-1 px-2 rounded-full bg-red-100 border border-red-300 flex items-center justify-center">
+                                                    <Star className="h-3 w-3 text-red-500 mr-1" />
+                                                    <span className="text-xs font-semibold text-red-700">Top 50</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                      ) : (
+                                      <span className="text-gray-500">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge className={status.color + " flex items-center whitespace-nowrap"}>
+                                        {status.icon}
+                                        {status.label}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <Link to={`/student/question/${question.id}`}>
+                                        <Button size="sm" className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white transition-all duration-300 hover:shadow-md">
+                                          {isCompleted ? 'Làm lại' : (answerDetails?.started_at ? 'Tiếp tục' : 'Bắt đầu')}
+                                          <ChevronRight className="ml-1 h-4 w-4" />
+                                        </Button>
+                                      </Link>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={8} className="text-center py-10 text-gray-500">
+                                <div className="flex flex-col items-center justify-center">
+                                  <div className="bg-blue-50 rounded-full p-3 mb-3">
+                                    <Activity className="h-8 w-8 text-blue-400" />
+                                  </div>
+                                  <p className="font-medium">Bạn chưa hoàn thành bài tập nào</p>
+                                  <p className="text-sm text-gray-500 mt-1">Hãy bắt đầu làm bài tập để hiển thị kết quả tại đây.</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Mobile Card Layout - Only visible on small screens */}
+                    <div className="sm:hidden">
+                      {questions.filter(q => completedQuestionIds.has(q.id)).length > 0 ? (
+                        questions
+                          .filter(q => completedQuestionIds.has(q.id))
+                          .map((question, index) => {
+                            const deadline = questionDeadlines[question.id];
+                            const answerDetails = studentAnswersMap[question.id];
+                            const isCompleted = answerDetails?.is_completed || false;
+                            const score = answerDetails?.score;
+                            const ranking = studentRankings[question.id];
+                            const hasStarted = answerDetails?.started_at != null;
+                            const attemptCount = attemptCounts[question.id] || answerDetails?.attempt_count || 0;
+                            
+                            let status;
+                            if (isCompleted) {
+                              const isPassed = score !== null && score !== undefined && score >= 70;
+                              if (isPassed) {
+                                status = {
+                                  label: 'Đã hoàn thành',
+                                  color: 'bg-green-100 text-green-800',
+                                  icon: <CheckCircle className="h-4 w-4 mr-1" />,
+                                  code: ASSIGNMENT_STATUS.COMPLETED
+                                };
+                              } else {
+                                status = {
+                                  label: 'Chưa đạt',
+                                  color: 'bg-red-100 text-red-800',
+                                  icon: <AlertTriangle className="h-4 w-4 mr-1" />,
+                                  code: ASSIGNMENT_STATUS.NOT_PASSED
+                                };
+                              }
+                            } else if (answerDetails?.started_at) {
+                              status = {
+                                label: 'Đã làm',
+                                color: 'bg-yellow-100 text-yellow-800',
+                                icon: <Clock className="h-4 w-4 mr-1" />,
+                                code: ASSIGNMENT_STATUS.IN_PROGRESS
+                              };
+                            } else {
+                              status = {
+                                label: 'Chưa làm',
+                                color: 'bg-blue-100 text-blue-800',
+                                icon: <BookOpen className="h-4 w-4 mr-1" />,
+                                code: ASSIGNMENT_STATUS.NOT_STARTED
+                              };
+                            }
+                            
+                            return (
+                              <div key={question.id} className="p-4 border-b last:border-b-0 bg-white">
+                                <div className="font-medium text-lg mb-2">{question.title}</div>
+                                
+                                <div className="grid grid-cols-2 gap-2 mb-3">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs text-gray-500">Giáo viên</span>
+                                    <span>{question.profiles?.full_name || '-'}</span>
+                                  </div>
+                                  
+                                  <div className="flex flex-col">
+                                    <span className="text-xs text-gray-500">Deadline</span>
+                                    <span className={getDeadlineColorClass(deadline)}>
+                                      {formatDate(deadline)}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="flex flex-col">
+                                    <span className="text-xs text-gray-500">Số lần làm</span>
+                                    <span>{attemptCount}</span>
+                                  </div>
+                                  
+                                  <div className="flex flex-col">
+                                    <span className="text-xs text-gray-500">Trạng thái</span>
+                                    <Badge className={`${status.color} flex items-center whitespace-nowrap mt-1`}>
+                                      {status.icon}
+                                      {status.label}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex justify-between items-center">
+                                  {isCompleted ? (
+                                    <div className="flex items-center">
+                                      <span className="text-xs text-gray-500 mr-2">Điểm:</span>
+                                      {(() => {
+                                        const rankingData = studentRankings[question.id];
+                                        let displayScore = 0;
+                                        
+                                        if (rankingData && rankingData.adjusted_score !== undefined) {
+                                          displayScore = rankingData.adjusted_score;
+                                        } else if (answerDetails?.score !== undefined && answerDetails.score !== null) {
+                                          displayScore = answerDetails.score === 100 ? 10 : Math.round(answerDetails.score / 10) / 10;
+                                        }
+                                        
+                                        // Simplified score display for mobile
+                                        let scoreClass = "";
+                                        if (displayScore >= 9) scoreClass = "text-yellow-600 font-bold";
+                                        else if (displayScore >= 8) scoreClass = "text-blue-600 font-bold";
+                                        else if (displayScore >= 7) scoreClass = "text-green-600 font-bold";
+                                        else if (displayScore >= 5) scoreClass = "text-yellow-600 font-bold";
+                                        else scoreClass = "text-red-600 font-bold";
+                                        
+                                        return (
+                                          <span className={scoreClass}>{displayScore.toFixed(1)}</span>
+                                        );
+                                      })()}
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-500">Chưa có điểm</span>
+                                  )}
+                                  
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      variant="default" 
+                                      size="sm"
+                                      onClick={() => {
+                                        setIsRestartModalOpen(true);
+                                        setSelectedQuestion(question);
+                                      }}
+                                      disabled={requestingQuestionIds.has(question.id)}
+                                      className="whitespace-nowrap"
+                                    >
+                                      {requestingQuestionIds.has(question.id) ? (
+                                        <div className="flex items-center">
+                                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                          Đang xử lý...
+                                        </div>
+                                      ) : (
+                                        "Làm bài"
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                      ) : (
+                        <div className="p-4 text-center text-gray-500">Bạn chưa hoàn thành bài tập nào</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'assigned' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-100 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <Sparkles className="h-5 w-5 text-indigo-500 animate-pulse-custom" />
+                      <p className="text-indigo-700 font-medium">
+                      Danh sách tất cả bài tập được giao cho bạn. Bài tập đã hoàn thành sẽ được đánh dấu và bạn có thể làm lại.
+                    </p>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto rounded-lg border shadow-sm">
+                    {/* Desktop Table - Hidden on small screens */}
+                    <div className="hidden sm:block">
+                      <Table>
+                        <TableHeader className="bg-gradient-to-r from-gray-50 to-indigo-50">
+                          <TableRow>
+                            <TableHead>Tiêu đề</TableHead>
+                            <TableHead className="hidden md:table-cell">Giáo viên</TableHead>
+                            <TableHead className="hidden lg:table-cell">Lớp học</TableHead>
+                            <TableHead className="hidden md:table-cell">Deadline</TableHead>
+                            <TableHead className="hidden lg:table-cell">Số lần làm</TableHead>
+                            <TableHead>Điểm</TableHead>
+                            <TableHead className="hidden md:table-cell">Xếp hạng</TableHead>
+                            <TableHead>Trạng thái</TableHead>
+                            <TableHead className="text-right">Thao tác</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {questions.length > 0 ? (
+                            questions.map((question, index) => {
                               const deadline = questionDeadlines[question.id];
                               const answerDetails = studentAnswersMap[question.id];
                               const isCompleted = answerDetails?.is_completed || false;
                               const score = answerDetails?.score;
-                              const ranking = studentRankings[question.id];
                               const hasStarted = answerDetails?.started_at != null;
                               // Sử dụng attempt_count từ attemptCounts
                               const attemptCount = attemptCounts[question.id] || answerDetails?.attempt_count || 0;
@@ -1998,11 +2459,14 @@ const StudentDashboard = () => {
                                 };
                               }
                               
-                              const isExpired = question.deadline && new Date(question.deadline) < new Date();
-                              
                               return (
                                 <TableRow key={question.id} className="table-row-animated" style={{ animationDelay: `${index * 0.05}s` }}>
-                                  <TableCell className="font-medium">{question.title}</TableCell>
+                                  <TableCell className="font-medium">
+                                    <div className="flex flex-col">
+                                      <span>{question.title}</span>
+                                      {getDifficultyText(question.difficulty)}
+                                    </div>
+                                  </TableCell>
                                   <TableCell>{question.profiles?.full_name || ''}</TableCell>
                                   <TableCell>
                                     {classNames[question.id] ? (
@@ -2203,7 +2667,7 @@ const StudentDashboard = () => {
                                         })()}
                                       </div>
                                     ) : (
-                                      <span className="text-gray-500">-</span>
+                                    <span className="text-gray-500">-</span>
                                     )}
                                   </TableCell>
                                   <TableCell>
@@ -2223,340 +2687,161 @@ const StudentDashboard = () => {
                                 </TableRow>
                               );
                             })
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={8} className="text-center py-10 text-gray-500">
-                              <div className="flex flex-col items-center justify-center">
-                                <div className="bg-blue-50 rounded-full p-3 mb-3">
-                                  <Activity className="h-8 w-8 text-blue-400" />
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={8} className="text-center py-10 text-gray-500">
+                                <div className="flex flex-col items-center justify-center">
+                                  <div className="bg-blue-50 rounded-full p-3 mb-3">
+                                    <Book className="h-8 w-8 text-blue-400" />
+                                  </div>
+                                  <p className="font-medium">Không có bài tập nào được giao</p>
+                                  <p className="text-sm text-gray-500 mt-1">Bạn sẽ thấy danh sách bài tập ở đây khi giáo viên giao bài.</p>
                                 </div>
-                                <p className="font-medium">Bạn chưa hoàn thành bài tập nào</p>
-                                <p className="text-sm text-gray-500 mt-1">Hãy bắt đầu làm bài tập để hiển thị kết quả tại đây.</p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-              </div>
-                </div>
-              )}
-
-              {activeTab === 'assigned' && (
-                <div className="space-y-4 animate-fade-in">
-                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-100 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <Sparkles className="h-5 w-5 text-indigo-500 animate-pulse-custom" />
-                      <p className="text-indigo-700 font-medium">
-                      Danh sách tất cả bài tập được giao cho bạn. Bài tập đã hoàn thành sẽ được đánh dấu và bạn có thể làm lại.
-                    </p>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
                     </div>
-                  </div>
-                  
-                  <div className="overflow-x-auto rounded-lg border shadow-sm">
-                    <Table>
-                      <TableHeader className="bg-gradient-to-r from-gray-50 to-indigo-50">
-                        <TableRow>
-                          <TableHead>Tiêu đề</TableHead>
-                          <TableHead>Giáo viên</TableHead>
-                          <TableHead>Lớp học</TableHead>
-                          <TableHead>Deadline</TableHead>
-                          <TableHead>Số lần làm</TableHead>
-                          <TableHead>Điểm</TableHead>
-                          <TableHead>Xếp hạng</TableHead>
-                          <TableHead>Trạng thái</TableHead>
-                          <TableHead className="text-right">Thao tác</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                    {questions.length > 0 ? (
-                          questions.map((question, index) => {
-                            const deadline = questionDeadlines[question.id];
-                            const answerDetails = studentAnswersMap[question.id];
-                            const isCompleted = answerDetails?.is_completed || false;
-                            const score = answerDetails?.score;
-                            const hasStarted = answerDetails?.started_at != null;
-                            // Sử dụng attempt_count từ attemptCounts
-                            const attemptCount = attemptCounts[question.id] || answerDetails?.attempt_count || 0;
-                            
-                            let status;
-                            if (isCompleted) {
-                              // Check if the score meets the passing threshold (70%)
-                              const isPassed = score !== null && score !== undefined && score >= 70;
-                              if (isPassed) {
-                              status = {
-                                label: 'Đã hoàn thành',
-                                color: 'bg-green-100 text-green-800',
-                                icon: <CheckCircle className="h-4 w-4 mr-1" />,
-                                code: ASSIGNMENT_STATUS.COMPLETED
-                              };
-                              } else {
-                                status = {
-                                  label: 'Chưa đạt',
-                                  color: 'bg-red-100 text-red-800',
-                                  icon: <AlertTriangle className="h-4 w-4 mr-1" />,
-                                  code: ASSIGNMENT_STATUS.NOT_PASSED
-                                };
-                              }
-                            } else if (answerDetails?.started_at) {
-                              status = {
-                                label: 'Đã làm',
-                                color: 'bg-yellow-100 text-yellow-800',
-                                icon: <Clock className="h-4 w-4 mr-1" />,
-                                code: ASSIGNMENT_STATUS.IN_PROGRESS
-                              };
+
+                    {/* Mobile Card Layout - Only visible on small screens */}
+                    <div className="sm:hidden">
+                      {questions.length > 0 ? (
+                        questions.map((question, index) => {
+                          const deadline = questionDeadlines[question.id];
+                          const answerDetails = studentAnswersMap[question.id];
+                          const isCompleted = answerDetails?.is_completed || false;
+                          const score = answerDetails?.score;
+                          const hasStarted = answerDetails?.started_at != null;
+                          // Sử dụng attempt_count từ attemptCounts
+                          const attemptCount = attemptCounts[question.id] || answerDetails?.attempt_count || 0;
+                          
+                          let status;
+                          if (isCompleted) {
+                            // Check if the score meets the passing threshold (70%)
+                            const isPassed = score !== null && score !== undefined && score >= 70;
+                            if (isPassed) {
+                            status = {
+                              label: 'Đã hoàn thành',
+                              color: 'bg-green-100 text-green-800',
+                              icon: <CheckCircle className="h-4 w-4 mr-1" />,
+                              code: ASSIGNMENT_STATUS.COMPLETED
+                            };
                             } else {
                               status = {
-                                label: 'Chưa làm',
-                                color: 'bg-blue-100 text-blue-800',
-                                icon: <BookOpen className="h-4 w-4 mr-1" />,
-                                code: ASSIGNMENT_STATUS.NOT_STARTED
+                                label: 'Chưa đạt',
+                                color: 'bg-red-100 text-red-800',
+                                icon: <AlertTriangle className="h-4 w-4 mr-1" />,
+                                code: ASSIGNMENT_STATUS.NOT_PASSED
                               };
                             }
-                            
-                            return (
-                              <TableRow key={question.id} className="table-row-animated" style={{ animationDelay: `${index * 0.05}s` }}>
-                                <TableCell className="font-medium">
-                                  <div className="flex flex-col">
-                                    <span>{question.title}</span>
-                                    {getDifficultyText(question.difficulty)}
-                                  </div>
-                                </TableCell>
-                                <TableCell>{question.profiles?.full_name || ''}</TableCell>
-                                <TableCell>
-                                  {classNames[question.id] ? (
-                                    <Badge variant="outline" className="bg-indigo-50 text-indigo-700">
-                                      {classNames[question.id]}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-gray-500">-</span>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex flex-col">
-                                    <span className={getDeadlineColorClass(deadline)}>
-                                      {formatDate(deadline)}
-                                    </span>
-                                    {isPastDeadline(deadline) && !isCompleted && (
-                                      <span className="text-red-500 text-xs mt-1 flex items-center">
-                                        <AlertTriangle className="h-3 w-3 mr-1" />
-                                        Đã quá hạn
-                                      </span>
-                                    )}
-                                    {isDeadlineApproaching(deadline) && !isCompleted && (
-                                      <span className="text-orange-500 text-xs mt-1 flex items-center">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        Sắp hết hạn
-                                      </span>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="bg-blue-50">
-                                    {attemptCount}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  {isCompleted ? (
-                                    <div className="flex flex-col">
-                                      {(() => {
-                                        // Lấy điểm đã điều chỉnh từ bảng rankings nếu có
-                                        const rankingData = studentRankings[question.id];
-                                        let displayScore = 0;
-                                        
-                                        if (rankingData && rankingData.adjusted_score !== undefined) {
-                                          // Sử dụng adjusted_score từ class_rankings
-                                          displayScore = rankingData.adjusted_score;
-                                        } else if (answerDetails?.score !== undefined && answerDetails.score !== null) {
-                                          // Fallback nếu không có trong rankings
-                                          displayScore = answerDetails.score === 100 ? 10 : Math.round(answerDetails.score / 10) / 10;
-                                        }
-                                        
-                                        // Xác định loại badge dựa trên điểm số
-                                        let badgeClass = 'score-badge ';
-                                        let iconElement = null;
-                                        
-                                        if (displayScore >= 9) {
-                                          badgeClass += 'perfect';
-                                          iconElement = <Trophy className="h-5 w-5 mr-2 text-yellow-600 animate-shake" />;
-                                        } else if (displayScore >= 8) {
-                                          badgeClass += 'excellent';
-                                          iconElement = <Award className="h-5 w-5 mr-2 text-blue-600 animate-pulse-custom" />;
-                                        } else if (displayScore >= 7) {
-                                          badgeClass += 'good';
-                                          iconElement = <Star className="h-5 w-5 mr-2 text-green-500" />;
-                                        } else if (displayScore >= 5) {
-                                          badgeClass += 'average';
-                                          iconElement = <Star className="h-5 w-5 mr-2 text-yellow-500" />;
-                                              } else {
-                                          badgeClass += 'poor';
-                                          iconElement = <AlertTriangle className="h-5 w-5 mr-2 text-red-200" />;
-                                        }
-                                        
-                                        return (
-                                          <div className={badgeClass}>
-                                            {iconElement}
-                                            <div className="relative">
-                                              <span className="font-bold text-lg relative z-10">{displayScore.toFixed(1)}</span>
-                                              {displayScore >= 9 && (
-                                                <div className="absolute -top-1 -right-1 -bottom-1 -left-1 bg-yellow-200 rounded-full opacity-20 animate-pulse-custom"></div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-                                  ) : (
-                                    <span className="text-gray-500">-</span>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {studentRankings[question.id] ? (
-                                    <div className="flex flex-col gap-1">
-                                      {(() => {
-                                        const rank = studentRankings[question.id].rank;
-                                        const total = studentRankings[question.id].total;
-                                        
-                                        // Xác định loại badge dựa trên thứ hạng
-                                        let badgeClass = 'rank-badge ';
-                                        let iconElement = null;
-                                        let effectElement = null;
-                                        
-                                        if (rank === 1) {
-                                          badgeClass += 'top1';
-                                          iconElement = <Crown className="h-5 w-5 mr-2 text-yellow-600 animate-shake" />;
-                                          effectElement = (
-                                            <div className="absolute top-0 right-0 left-0 bottom-0">
-                                              <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-ping"></div>
-                                              <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-yellow-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
-                                            </div>
-                                          );
-                                        } else if (rank <= 3) {
-                                          badgeClass += 'top3';
-                                          iconElement = <Trophy className="h-5 w-5 mr-2 text-gray-600 animate-pulse-custom" />;
-                                          effectElement = (
-                                            <div className="absolute top-0 right-0 left-0 bottom-0">
-                                              <div className="absolute -top-1 -right-1 w-2 h-2 bg-gray-400 rounded-full animate-ping" style={{ animationDelay: '0.2s' }}></div>
-                                            </div>
-                                          );
-                                        } else if (rank <= 10) {
-                                          badgeClass += 'top10';
-                                          iconElement = <Award className="h-5 w-5 mr-2 text-orange-600" />;
-                                          effectElement = (
-                                            <div className="absolute top-0 right-0 left-0 bottom-0">
-                                              <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-orange-400 rounded-full animate-ping" style={{ animationDelay: '0.3s' }}></div>
-                                            </div>
-                                          );
-                                        } else if (rank <= 20) {
-                                          badgeClass += 'top20';
-                                          iconElement = <Award className="h-5 w-5 mr-2 text-purple-600" />;
-                                          effectElement = (
-                                            <div className="absolute top-0 right-0 left-0 bottom-0">
-                                              <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-purple-400 rounded-full animate-ping" style={{ animationDelay: '0.4s' }}></div>
-                                            </div>
-                                          );
-                                        } else if (rank <= 30) {
-                                          badgeClass += 'top30';
-                                          iconElement = <Star className="h-5 w-5 mr-2 text-teal-600" />;
-                                          effectElement = (
-                                            <div className="absolute top-0 right-0 left-0 bottom-0">
-                                              <div className="absolute -top-1 -left-1 w-2 h-2 bg-teal-400 rounded-full animate-ping" style={{ animationDelay: '0.3s' }}></div>
-                                            </div>
-                                          );
-                                        } else if (rank <= 50) {
-                                          badgeClass += 'top50';
-                                          iconElement = <Star className="h-5 w-5 mr-2 text-red-600" />;
-                                          effectElement = (
-                                            <div className="absolute top-0 right-0 left-0 bottom-0">
-                                              <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
-                                            </div>
-                                          );
-                                        }
-                                        
-                                        return (
-                                          <div className="relative">
-                                            <div className={badgeClass}>
-                                              {iconElement}
-                                              <span className="font-bold">#{rank}/{total}</span>
-                                              {effectElement}
-                                            </div>
-                                            
-                                            {rank === 1 && (
-                                              <div className="mt-1 py-1 px-2 rounded-full bg-yellow-100 border border-yellow-300 flex items-center justify-center animate-float">
-                                                <Crown className="h-3 w-3 text-yellow-500 mr-1 animate-sparkle" />
-                                                <span className="text-xs font-semibold text-yellow-700 rainbow-text">Đứng đầu</span>
-                                              </div>
-                                            )}
-                                            {rank > 1 && rank <= 3 && (
-                                              <div className="mt-1 py-1 px-2 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center animate-float">
-                                                <Trophy className="h-3 w-3 text-gray-500 mr-1" />
-                                                <span className="text-xs font-semibold text-gray-700">Top 3</span>
-                                              </div>
-                                            )}
-                                            {rank > 3 && rank <= 10 && (
-                                              <div className="mt-1 py-1 px-2 rounded-full bg-orange-100 border border-orange-300 flex items-center justify-center">
-                                                <Award className="h-3 w-3 text-orange-500 mr-1" />
-                                                <span className="text-xs font-semibold text-orange-700">Top 10</span>
-                                              </div>
-                                            )}
-                                            {rank > 10 && rank <= 20 && (
-                                              <div className="mt-1 py-1 px-2 rounded-full bg-purple-100 border border-purple-300 flex items-center justify-center">
-                                                <Award className="h-3 w-3 text-purple-500 mr-1" />
-                                                <span className="text-xs font-semibold text-purple-700">Top 20</span>
-                                              </div>
-                                            )}
-                                            {rank > 20 && rank <= 30 && (
-                                              <div className="mt-1 py-1 px-2 rounded-full bg-teal-100 border border-teal-300 flex items-center justify-center">
-                                                <Star className="h-3 w-3 text-teal-500 mr-1" />
-                                                <span className="text-xs font-semibold text-teal-700">Top 30</span>
-                                              </div>
-                                            )}
-                                            {rank > 30 && rank <= 50 && (
-                                              <div className="mt-1 py-1 px-2 rounded-full bg-red-100 border border-red-300 flex items-center justify-center">
-                                                <Star className="h-3 w-3 text-red-500 mr-1" />
-                                                <span className="text-xs font-semibold text-red-700">Top 50</span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-                                  ) : (
-                                  <span className="text-gray-500">-</span>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={status.color + " flex items-center whitespace-nowrap"}>
+                          } else if (answerDetails?.started_at) {
+                            status = {
+                              label: 'Đã làm',
+                              color: 'bg-yellow-100 text-yellow-800',
+                              icon: <Clock className="h-4 w-4 mr-1" />,
+                              code: ASSIGNMENT_STATUS.IN_PROGRESS
+                            };
+                          } else {
+                            status = {
+                              label: 'Chưa làm',
+                              color: 'bg-blue-100 text-blue-800',
+                              icon: <BookOpen className="h-4 w-4 mr-1" />,
+                              code: ASSIGNMENT_STATUS.NOT_STARTED
+                            };
+                          }
+                          
+                          return (
+                            <div key={question.id} className="p-4 border-b last:border-b-0 bg-white">
+                              <div className="font-medium text-lg mb-2">{question.title}</div>
+                              
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                <div className="flex flex-col">
+                                  <span className="text-xs text-gray-500">Giáo viên</span>
+                                  <span>{question.profiles?.full_name || '-'}</span>
+                                </div>
+                                
+                                <div className="flex flex-col">
+                                  <span className="text-xs text-gray-500">Deadline</span>
+                                  <span className={getDeadlineColorClass(deadline)}>
+                                    {formatDate(deadline)}
+                                  </span>
+                                </div>
+                                
+                                <div className="flex flex-col">
+                                  <span className="text-xs text-gray-500">Số lần làm</span>
+                                  <span>{attemptCount}</span>
+                                </div>
+                                
+                                <div className="flex flex-col">
+                                  <span className="text-xs text-gray-500">Trạng thái</span>
+                                  <Badge className={`${status.color} flex items-center whitespace-nowrap mt-1`}>
                                     {status.icon}
                                     {status.label}
                                   </Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Link to={`/student/question/${question.id}`}>
-                                    <Button size="sm" className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white transition-all duration-300 hover:shadow-md">
-                                      {isCompleted ? 'Làm lại' : (answerDetails?.started_at ? 'Tiếp tục' : 'Bắt đầu')}
-                                      <ChevronRight className="ml-1 h-4 w-4" />
-                                    </Button>
-                                  </Link>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={8} className="text-center py-10 text-gray-500">
-                              <div className="flex flex-col items-center justify-center">
-                                <div className="bg-blue-50 rounded-full p-3 mb-3">
-                                  <Book className="h-8 w-8 text-blue-400" />
                                 </div>
-                                <p className="font-medium">Không có bài tập nào được giao</p>
-                                <p className="text-sm text-gray-500 mt-1">Bạn sẽ thấy danh sách bài tập ở đây khi giáo viên giao bài.</p>
                               </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                              
+                              <div className="flex justify-between items-center">
+                                {isCompleted ? (
+                                  <div className="flex items-center">
+                                    <span className="text-xs text-gray-500 mr-2">Điểm:</span>
+                                    {(() => {
+                                      const rankingData = studentRankings[question.id];
+                                      let displayScore = 0;
+                                      
+                                      if (rankingData && rankingData.adjusted_score !== undefined) {
+                                        displayScore = rankingData.adjusted_score;
+                                      } else if (answerDetails?.score !== undefined && answerDetails.score !== null) {
+                                        displayScore = answerDetails.score === 100 ? 10 : Math.round(answerDetails.score / 10) / 10;
+                                      }
+                                      
+                                      // Simplified score display for mobile
+                                      let scoreClass = "";
+                                      if (displayScore >= 9) scoreClass = "text-yellow-600 font-bold";
+                                      else if (displayScore >= 8) scoreClass = "text-blue-600 font-bold";
+                                      else if (displayScore >= 7) scoreClass = "text-green-600 font-bold";
+                                      else if (displayScore >= 5) scoreClass = "text-yellow-600 font-bold";
+                                      else scoreClass = "text-red-600 font-bold";
+                                      
+                                      return (
+                                        <span className={scoreClass}>{displayScore.toFixed(1)}</span>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-500">Chưa có điểm</span>
+                                )}
+                                
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="default" 
+                                    size="sm"
+                                    onClick={() => {
+                                      setIsRestartModalOpen(true);
+                                      setSelectedQuestion(question);
+                                    }}
+                                    disabled={requestingQuestionIds.has(question.id)}
+                                    className="whitespace-nowrap"
+                                  >
+                                    {requestingQuestionIds.has(question.id) ? (
+                                      <div className="flex items-center">
+                                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                        Đang xử lý...
+                                      </div>
+                                    ) : (
+                                      "Làm bài"
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="p-4 text-center text-gray-500">Không có bài tập nào được giao</div>
+                      )}
+                    </div>
                   </div>
               </div>
             )}
