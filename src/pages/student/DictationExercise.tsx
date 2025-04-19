@@ -2014,32 +2014,11 @@ const DictationExercise = () => {
         adjustedScore: calculateAdjustedScore(scoreResults.totalScore)
       });
       
-      // Gửi đáp án lên để Supabase phân tích lỗi
-      console.log('Gửi đáp án lên Supabase để phân tích lỗi...');
-      const { data: analysisData, error: analysisError } = await supabase.rpc('analyze_student_errors', {
-        p_student_id: user.id,
-        p_question_id: questionId,
-        p_student_answers: safeAnswers,
-        p_correct_answers: correctAnswers
-      });
+      // BỎ QUA việc gửi đáp án lên để Supabase phân tích lỗi
+      // Sử dụng phân tích lỗi phía client
+      console.log('Sử dụng phân tích lỗi phía client thay vì gọi backend API');
       
-      // Sử dụng kết quả phân tích lỗi từ backend hoặc fallback về frontend
-      if (!analysisError && analysisData) {
-        console.log('Phân tích lỗi backend thành công:', analysisData);
-        // Cập nhật kết quả phân tích từ backend
-        errorAnalysis = {
-          errorCounts: analysisData.error_counts,
-          errorTypes: analysisData.error_types,
-          wrongAnswers: analysisData.wrong_answers
-        };
-      } else {
-        if (analysisError) {
-          console.error('Lỗi khi phân tích lỗi từ backend:', analysisError);
-          toast.error('Không thể phân tích lỗi. Vui lòng thử lại sau.');
-          // Không fallback về frontend để đảm bảo tất cả phân tích được thực hiện trên backend
-          return;
-        }
-      }
+      // Bỏ qua đoạn code gọi analyze_student_errors RPC
       
       const metadata = {
         blanksPositions: blanksPositions,
@@ -2063,7 +2042,7 @@ const DictationExercise = () => {
           incorrect_count: scoreResults.incorrectAnswers,
           raw_percentage: totalQuestionsCount > 0 ? (scoreResults.correctAnswers / totalQuestionsCount) * 100 : 0,
           final_score: scoreResults.totalScore,
-          calculation_method: "auto_trigger",
+          calculation_method: "frontend",  // Thay đổi thành frontend
           formula: "Math.round((correctCount / totalQuestions) * 100)",
           student_level: studentCategory.category, 
           multiplier: studentCategory.category === "good" ? 10 : studentCategory.category === "average" ? 8 : 7
@@ -2111,6 +2090,7 @@ const DictationExercise = () => {
           
           if (rpcError) {
             console.error('Lỗi khi lưu kết quả qua RPC:', rpcError);
+            // Vẫn tiếp tục để thử phương pháp thay thế
           } else {
             console.log('Lưu kết quả qua RPC thành công:', rpcResult);
             submissionRecordIdRef.current = rpcResult.record_id;
@@ -2118,6 +2098,7 @@ const DictationExercise = () => {
           }
         } catch (err) {
           console.error('Exception khi gọi RPC:', err);
+          // Vẫn tiếp tục để thử phương pháp thay thế
         }
       } else {
         console.log('Bỏ qua RPC theo cấu hình useDirectApiOnly, sử dụng Direct API...');
@@ -2231,22 +2212,27 @@ const DictationExercise = () => {
       }
       
       // Lưu phân tích lỗi vào bảng error_analysis
-      const { error: errorAnalysisError } = await supabase
-        .from('error_analysis')
-        .upsert({
-          student_id: user.id,
-          question_id: questionId, 
-          assignment_id: null, // có thể thêm nếu có
-          error_types: errorAnalysis.errorCounts,
-          error_details: errorDetails
-        }, {
-          onConflict: 'student_id,question_id'
-        });
-        
-      if (errorAnalysisError) {
-        console.error('Lỗi khi lưu phân tích lỗi:', errorAnalysisError);
-      } else {
-        console.log('Đã lưu phân tích lỗi thành công');
+      try {
+        const { error: errorAnalysisError } = await supabase
+          .from('error_analysis')
+          .upsert({
+            student_id: user.id,
+            question_id: questionId, 
+            assignment_id: null, // có thể thêm nếu có
+            error_types: errorAnalysis.errorCounts,
+            error_details: errorDetails
+          }, {
+            onConflict: 'student_id,question_id'
+          });
+          
+        if (errorAnalysisError) {
+          console.error('Lỗi khi lưu phân tích lỗi:', errorAnalysisError);
+        } else {
+          console.log('Đã lưu phân tích lỗi thành công');
+        }
+      } catch (error) {
+        console.error('Lỗi khi lưu phân tích lỗi:', error);
+        // Bỏ qua lỗi và tiếp tục
       }
       
       // Tạo gợi ý cải thiện dựa trên kết quả phân tích lỗi
@@ -2258,22 +2244,32 @@ const DictationExercise = () => {
         
         if (suggestionsError) {
           console.error('Lỗi khi tạo gợi ý cải thiện:', suggestionsError);
+          // Bỏ qua lỗi không quan trọng này
         } else {
           console.log('Tạo gợi ý cải thiện thành công:', suggestionsData);
         }
       } catch (err) {
         console.error('Exception khi tạo gợi ý cải thiện:', err);
+        // Bỏ qua lỗi không quan trọng này
       }
       
+      // Luôn hiển thị kết quả bất kể có lưu thành công hay không
+      setShowResults(true);
+      setIsLoading(false);
+      
       // Hiển thị thông báo thành công
-      toast.success('Đã lưu kết quả thành công!');
+      toast.success('Đã hoàn thành bài làm!');
       
       // Chuyển sang trang kết quả
       handleSubmitSuccess();
     
     } catch (error) {
       console.error('Lỗi khi xử lý nộp bài:', error);
-      toast.error('Có lỗi xảy ra khi xử lý bài làm của bạn. Vui lòng thử lại sau.');
+      toast.error('Có lỗi xảy ra khi xử lý bài làm của bạn. Bạn vẫn có thể xem kết quả.');
+      
+      // Vẫn hiển thị kết quả ngay cả khi có lỗi
+      setShowResults(true);
+      setIsLoading(false);
     }
   };
 
