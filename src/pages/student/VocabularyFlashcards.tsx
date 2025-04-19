@@ -50,7 +50,6 @@ const fullscreenStyles = `
     z-index: 50;
     width: 100%;
     flex-shrink: 0;
-    margin-top: 15px;
   }
   
   .fullscreen-container .content-wrapper {
@@ -63,8 +62,6 @@ const fullscreenStyles = `
     overflow-y: hidden;
     width: 100%;
     padding: 0.5rem;
-    padding-top: 1.5rem;
-    margin-top: 10px;
   }
 
   .fullscreen-container .content-wrapper .container {
@@ -1102,6 +1099,23 @@ const VocabularyFlashcards = () => {
           
           {/* Mặt sau: hiển thị nghĩa và thông tin bổ sung */}
           <div className="flip-card-back">
+            {/* Hình ảnh */}
+            <div className="image-container back relative">
+              {currentVocabulary.image_url ? (
+                <img 
+                  src={currentVocabulary.image_url} 
+                    alt={currentVocabulary.word}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://placehold.co/300x200?text=No+Image';
+                    }}
+                  />
+              ) : (
+                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                  <ImageIcon className="w-8 h-8 text-gray-300" />
+                </div>
+              )}
+            </div>
+          
             {/* Nghĩa tiếng Việt */}
             <div className="meaning-vi w-full text-center">
               <span>

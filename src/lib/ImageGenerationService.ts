@@ -41,7 +41,7 @@ export class ImageGenerationService {
    */
   constructor(
     private modelId: string = "black-forest-labs/FLUX.1-schnell", 
-    private token: `hf_${string}` = import.meta.env.VITE_HUGGINGFACE_API_KEY as `hf_${string}`
+    private token: `hf_${string}` = "" as `hf_${string}`
   ) {
     console.log(`Image generation service initialized with ${modelId} model`);
     this.client = Client.connect(this.modelId, {
