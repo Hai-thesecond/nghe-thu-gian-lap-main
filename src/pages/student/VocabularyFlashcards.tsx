@@ -50,6 +50,7 @@ const fullscreenStyles = `
     z-index: 50;
     width: 100%;
     flex-shrink: 0;
+    margin-top: 15px;
   }
   
   .fullscreen-container .content-wrapper {
@@ -62,6 +63,8 @@ const fullscreenStyles = `
     overflow-y: hidden;
     width: 100%;
     padding: 0.5rem;
+    padding-top: 1.5rem;
+    margin-top: 10px;
   }
 
   .fullscreen-container .content-wrapper .container {
@@ -146,7 +149,7 @@ const flippableCardStyles = `
     perspective: 1000px;
     width: 100%;
     height: auto;
-    min-height: 450px;
+    min-height: 650px;
     margin: 0 auto;
   }
   
@@ -167,7 +170,7 @@ const flippableCardStyles = `
     position: absolute;
     width: 100%;
     height: 100%;
-    min-height: 450px;
+    min-height: 650px;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     border-radius: 1rem;
@@ -192,7 +195,7 @@ const flippableCardStyles = `
     overflow: visible;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     padding-bottom: 4rem;
   }
@@ -239,9 +242,9 @@ const flippableCardStyles = `
   }
   
   .image-container.back {
-    margin: 0 auto 1.5rem;
-    max-width: 260px;
-    height: 180px;
+    margin: 0 auto 1rem;
+    max-width: 220px;
+    height: 150px;
   }
   
   .image-container img {
@@ -284,21 +287,60 @@ const flippableCardStyles = `
   }
   
   .meaning-vi {
-    font-size: 1.5rem;
-    font-weight: 500;
-    color: #1f2937;
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 0.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    padding: 0.8rem;
+    background: linear-gradient(135deg, #dbeafe, #93c5fd);
+    border-radius: 1rem;
+    margin: 0.25rem auto 1rem;
+    max-width: 90%;
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.25);
+    border: 2px solid #3b82f6;
+    position: relative;
+    z-index: 5;
+    animation: pulse-highlight 2s infinite;
+  }
+  
+  @keyframes pulse-highlight {
+    0%, 100% {
+      box-shadow: 0 8px 20px rgba(59, 130, 246, 0.25);
+    }
+    50% {
+      box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5), 0 0 15px rgba(59, 130, 246, 0.3);
+    }
+  }
+  
+  .meaning-vi::before {
+    content: "Nghĩa tiếng Việt";
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    background: #3b82f6;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    z-index: 1;
+  }
+  
+  .meaning-vi span {
+    display: block;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    letter-spacing: 0.01em;
+  }
+  
+  .meaning-vi:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 6px 15px rgba(59, 130, 246, 0.2), inset 0 2px 5px rgba(0, 0, 0, 0.05);
   }
   
   .additional-info-section {
     background: rgba(255, 255, 255, 0.7);
     border-radius: 0.5rem;
     padding: 1rem;
-    margin-top: 1rem;
+    margin-top: 0.5rem;
     width: 100%;
     text-align: left;
   }
@@ -1060,68 +1102,36 @@ const VocabularyFlashcards = () => {
           
           {/* Mặt sau: hiển thị nghĩa và thông tin bổ sung */}
           <div className="flip-card-back">
-            {/* Hình ảnh */}
-            <div className="image-container back relative">
-              {currentVocabulary.image_url ? (
-                <img 
-                  src={currentVocabulary.image_url} 
-                    alt={currentVocabulary.word}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://placehold.co/300x200?text=No+Image';
-                    }}
-                  />
-              ) : (
-                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                  <ImageIcon className="w-8 h-8 text-gray-300" />
-                </div>
-              )}
-            </div>
-          
             {/* Nghĩa tiếng Việt */}
-            <div className="meaning-vi w-full text-center mb-2">
-              {currentVocabulary.meaning_vi || "Chưa có nghĩa tiếng Việt"}
-            </div>
-            
-            {/* Audio button for back of card */}
-            <div className="flex justify-center mb-4 audio-button-container">
-              <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full opacity-70 blur-sm group-hover:opacity-100 transition duration-300"></div>
-                <Button
-                  size="icon"
-                  className="relative rounded-full w-14 h-14 bg-white hover:bg-blue-50 border-none shadow-md transform hover:scale-110 transition-all duration-300"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    playAudio();
-                  }}
-                >
-                  <Volume2 className={`h-7 w-7 text-primary ${isPlaying ? 'animate-pulse' : ''}`} />
-                </Button>
-              </div>
+            <div className="meaning-vi w-full text-center">
+              <span>
+                {currentVocabulary.meaning_vi || "Chưa có nghĩa tiếng Việt"}
+              </span>
             </div>
             
             {/* Thông tin bổ sung */}
-            <div className="additional-info-section">
+            <div className="additional-info-section bg-white/80 backdrop-blur-sm rounded-xl border border-blue-100 shadow-sm p-3">
               <div className="grid grid-cols-1 gap-2">
-              {/* Definition */}
-                <div className="mb-2">
-                <div className="info-title flex items-center">
-                  <Book className="h-4 w-4 mr-1 text-primary" />
-                  Definition:
-                </div>
-                  <div className="text-gray-700 p-2 bg-white/60 rounded-md border border-blue-50 mt-1">
-                      <p className="text-sm">
-                      {getDefinition()}
-                      </p>
+                {/* Definition */}
+                <div className="mb-1">
+                  <div className="info-title flex items-center text-blue-700">
+                    <Book className="h-4 w-4 mr-1.5 text-blue-600" />
+                    Definition:
                   </div>
-              </div>
+                  <div className="text-gray-700 p-2 bg-blue-50/60 rounded-lg border border-blue-100 mt-1 shadow-inner">
+                    <p className="text-sm leading-relaxed">
+                      {getDefinition()}
+                    </p>
+                  </div>
+                </div>
               
                 {/* Example */}
-                <div className="mb-2">
-                <div className="info-title flex items-center">
-                  <Sparkles className="h-4 w-4 mr-1 text-primary" />
-                  Example:
-                </div>
-                  <p className="text-gray-700 italic p-2 bg-white/60 rounded-md border border-blue-50 mt-1 text-sm">
+                <div className="mb-1">
+                  <div className="info-title flex items-center text-indigo-600">
+                    <Sparkles className="h-4 w-4 mr-1.5 text-indigo-500" />
+                    Example:
+                  </div>
+                  <p className="text-gray-700 italic p-2 bg-indigo-50/60 rounded-lg border border-indigo-100 mt-1 text-sm leading-relaxed shadow-inner">
                     {Array.isArray(currentVocabulary.example) && currentVocabulary.example.length > 0
                       ? `"${currentVocabulary.example[0]}"`
                       : typeof currentVocabulary.example === 'string' && currentVocabulary.example 
@@ -1135,12 +1145,12 @@ const VocabularyFlashcards = () => {
               {/* Synonyms and Antonyms in a 2-column layout */}
               <div className="grid grid-cols-2 gap-2 mt-2">
                 {/* Synonyms */}
-                <div>
-                  <div className="info-title flex items-center">
-                    <span className="mr-1 text-primary">≈</span>
+                <div className="bg-emerald-50/50 p-2 rounded-lg border border-emerald-100">
+                  <div className="info-title flex items-center text-emerald-700 mb-1">
+                    <span className="mr-1.5 text-emerald-600 font-bold">≈</span>
                     Synonyms:
                   </div>
-                    <div className="flex flex-wrap gap-1 mt-1">
+                  <div className="flex flex-wrap gap-1 mt-1">
                     {currentVocabulary.synonyms && 
                      (Array.isArray(currentVocabulary.synonyms) ? 
                       currentVocabulary.synonyms.length > 0 : 
@@ -1149,22 +1159,22 @@ const VocabularyFlashcards = () => {
                         currentVocabulary.synonyms : 
                         (currentVocabulary.synonyms as string).split(',')
                       ).map((syn, idx) => (
-                        <Badge key={idx} variant="outline" className="bg-white text-xs">
+                        <Badge key={idx} variant="outline" className="bg-white/90 border-emerald-200 text-emerald-700 text-xs shadow-sm hover:bg-emerald-50 transition-colors">
                           {syn.trim()}
-                          </Badge>
-                        )) : 
+                        </Badge>
+                      )) : 
                       <span className="text-gray-500 text-xs">No synonyms available.</span>
-                      }
-                    </div>
+                    }
+                  </div>
                 </div>
                 
                 {/* Antonyms */}
-                <div>
-                  <div className="info-title flex items-center">
-                    <span className="mr-1 text-red-500">≠</span>
+                <div className="bg-rose-50/50 p-2 rounded-lg border border-rose-100">
+                  <div className="info-title flex items-center text-rose-700 mb-1">
+                    <span className="mr-1.5 text-rose-600 font-bold">≠</span>
                     Antonyms:
                   </div>
-                    <div className="flex flex-wrap gap-1 mt-1">
+                  <div className="flex flex-wrap gap-1 mt-1">
                     {currentVocabulary.antonyms && 
                      (Array.isArray(currentVocabulary.antonyms) ? 
                       currentVocabulary.antonyms.length > 0 : 
@@ -1173,20 +1183,20 @@ const VocabularyFlashcards = () => {
                         currentVocabulary.antonyms : 
                         (currentVocabulary.antonyms as string).split(',')
                       ).map((ant, idx) => (
-                        <Badge key={idx} variant="outline" className="bg-white/80 border-red-100 text-red-600 text-xs">
+                        <Badge key={idx} variant="outline" className="bg-white/90 border-rose-200 text-rose-700 text-xs shadow-sm hover:bg-rose-50 transition-colors">
                           {ant.trim()}
-                          </Badge>
-                        )) : 
+                        </Badge>
+                      )) : 
                       <span className="text-gray-500 text-xs">No antonyms available.</span>
-                      }
-                    </div>
+                    }
+                  </div>
                 </div>
               </div>
             </div>
             
             {/* Nút hoàn thành */}
             <Button 
-              className="w-full mt-4 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-500 shadow-md hover:shadow-lg transition-all" 
+              className="w-full mt-3 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-500 shadow-md hover:shadow-lg transition-all" 
               onClick={() => handleCompleteCard(currentVocabulary.id)}
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
